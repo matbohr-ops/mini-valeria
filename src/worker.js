@@ -99,17 +99,22 @@ function jsonResponse(data, status = 200) {
 // funcionaba en V1.2 — solo cambia de dónde vienen las `memories` (antes
 // las leía ConversationSession de sí misma; ahora se las pasan desde
 // afuera, ya resueltas por userId).
-function buildSystemPromptWithMemory(memories) {
+function buildSystemPromptWithMemory(memories, projectContext = null) {
   const memoryContext =
     memories.length > 0
       ? memories.map((memory) => `- ${memory.text}`).join("\n")
       : "No hay memorias guardadas todavía.";
+
+  const projectContextText = projectContext
+    ? `\nCONTEXTO DEL PROYECTO ACTUAL:\n\nNombre: ${projectContext.name}\nDescripción: ${projectContext.description || "Sin descripción."}\n`
+    : "";
 
   return `${SYSTEM_PROMPT}
 
 MEMORIAS GUARDADAS DE TEO:
 
 ${memoryContext}
+${projectContextText}
 
 Usa estas memorias como contexto cuando sean relevantes para responder a Teo.
 
@@ -198,7 +203,15 @@ export class ConversationSession extends DurableObject {
     return (await this.ctx.storage.get("memories")) || [];
   }
 
-  async processMessage(message, memories) {
+  async setProject(projectId) {
+    await this.ctx.storage.put("projectId", projectId);
+  }
+
+  async getProject() {
+    return (await this.ctx.storage.get("projectId")) || null;
+  }
+
+  async processMessage(message, memories, projectContext = null) {
     const history = (await this.ctx.storage.get("history")) || [];
 
     const userTurn = {
@@ -222,7 +235,7 @@ export class ConversationSession extends DurableObject {
       },
       body: JSON.stringify({
         systemInstruction: {
-          parts: [{ text: buildSystemPromptWithMemory(memories) }]
+          parts: [{ text: buildSystemPromptWithMemory(memories, projectContext) }]
         },
         contents: contents,
         generationConfig: {
@@ -310,6 +323,31 @@ export class UserMemory extends DurableObject {
   async getMemories() {
     return (await this.ctx.storage.get("memories")) || [];
   }
+
+  async saveProject(name, description = "") {
+    const projects = (await this.ctx.storage.get("projects")) || [];
+
+    const project = {
+      id: crypto.randomUUID(),
+      name: name,
+      description: description,
+      createdAt: Date.now()
+    };
+
+    projects.push(project);
+    await this.ctx.storage.put("projects", projects);
+
+    return project;
+  }
+
+  async getProjects() {
+    return (await this.ctx.storage.get("projects")) || [];
+  }
+
+  async getProject(projectId) {
+    const projects = (await this.ctx.storage.get("projects")) || [];
+    return projects.find((project) => project.id === projectId) || null;
+  }
 }
 
 export default {
@@ -344,6 +382,31 @@ export default {
         } catch (error) {
           return jsonResponse(
             { error: "Error leyendo las memorias.", details: error.message },
+            500
+          );
+        }
+      }
+
+      // GET /projects?userId=...
+      if (url.pathname === "/projects") {
+        try {
+          const userId = url.searchParams.get("userId");
+
+          if (!userId) {
+            return jsonResponse(
+              { error: "No se recibió un userId válido." },
+              400
+            );
+          }
+
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const projects = await stub.getProjects();
+
+          return jsonResponse({ success: true, projects: projects });
+        } catch (error) {
+          return jsonResponse(
+            { error: "Error leyendo los proyectos.", details: error.message },
             500
           );
         }
@@ -398,6 +461,40 @@ export default {
         } catch (error) {
           return jsonResponse(
             { error: "Error guardando la memoria.", details: error.message },
+            500
+          );
+        }
+      }
+
+      // POST /projects { userId, name, description }
+      if (url.pathname === "/projects") {
+        try {
+          const body = await request.json();
+          const userId = body.userId;
+          const name = body.name;
+          const description = body.description || "";
+
+          if (!userId || typeof userId !== "string") {
+            return jsonResponse(
+              { error: "No se recibió un userId válido." },
+              400
+            );
+          }
+          if (!name || typeof name !== "string" || !name.trim()) {
+            return jsonResponse(
+              { error: "No se recibió un nombre de proyecto válido." },
+              400
+            );
+          }
+
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const project = await stub.saveProject(name.trim(), typeof description === "string" ? description.trim() : "");
+
+          return jsonResponse({ success: true, project: project });
+        } catch (error) {
+          return jsonResponse(
+            { error: "Error creando el proyecto.", details: error.message },
             500
           );
         }
@@ -464,12 +561,13 @@ export default {
         }
       }
 
-      // POST normal → chat. Ahora espera { userId, sessionId, message }.
+      // POST normal → chat. Espera { userId, sessionId, message, projectId? }.
       try {
         const body = await request.json();
         const userId = body.userId;
         const sessionId = body.sessionId;
         const message = body.message;
+        const requestedProjectId = body.projectId;
 
         if (!userId || typeof userId !== "string") {
           return jsonResponse(
@@ -493,11 +591,40 @@ export default {
         const sessionDoId = env.CONVERSATION_SESSION.idFromName(sessionId);
         const sessionStub = env.CONVERSATION_SESSION.get(sessionDoId);
 
+        let projectId = await sessionStub.getProject();
+
+        if (projectId === null && requestedProjectId) {
+          const userDoId = env.USER_MEMORY.idFromName(userId);
+          const userStub = env.USER_MEMORY.get(userDoId);
+          const requestedProject = await userStub.getProject(requestedProjectId);
+
+          if (!requestedProject) {
+            return jsonResponse(
+              { error: "El proyecto solicitado no existe." },
+              404
+            );
+          }
+
+          await sessionStub.setProject(requestedProjectId);
+          projectId = requestedProjectId;
+        }
+
         const userDoId = env.USER_MEMORY.idFromName(userId);
         const userStub = env.USER_MEMORY.get(userDoId);
         const memories = await userStub.getMemories();
 
-        const result = await sessionStub.processMessage(message, memories);
+        let projectContext = null;
+        if (projectId) {
+          projectContext = await userStub.getProject(projectId);
+          if (!projectContext) {
+            return jsonResponse(
+              { error: "El proyecto asociado a esta conversación ya no existe." },
+              404
+            );
+          }
+        }
+
+        const result = await sessionStub.processMessage(message, memories, projectContext);
 
         return jsonResponse({
           reply: result.reply,
