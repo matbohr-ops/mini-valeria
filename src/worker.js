@@ -79,7 +79,7 @@ const GEMINI_URL =
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type"
 };
 
@@ -348,6 +348,55 @@ export class UserMemory extends DurableObject {
     const projects = (await this.ctx.storage.get("projects")) || [];
     return projects.find((project) => project.id === projectId) || null;
   }
+
+  async saveDocument(projectId, name, content) {
+    const documents = (await this.ctx.storage.get("documents")) || [];
+
+    const document = {
+      id: crypto.randomUUID(),
+      projectId: projectId,
+      name: name,
+      content: content,
+      createdAt: Date.now()
+    };
+
+    documents.push(document);
+    await this.ctx.storage.put("documents", documents);
+
+    return document;
+  }
+
+  async getDocuments(projectId) {
+    const documents = (await this.ctx.storage.get("documents")) || [];
+    return documents.filter((document) => document.projectId === projectId);
+  }
+
+  async getDocument(documentId, projectId) {
+    const documents = (await this.ctx.storage.get("documents")) || [];
+    return (
+      documents.find(
+        (document) =>
+          document.id === documentId && document.projectId === projectId
+      ) || null
+    );
+  }
+
+  async deleteDocument(documentId, projectId) {
+    const documents = (await this.ctx.storage.get("documents")) || [];
+    const index = documents.findIndex(
+      (document) =>
+        document.id === documentId && document.projectId === projectId
+    );
+
+    if (index === -1) {
+      return null;
+    }
+
+    const [deleted] = documents.splice(index, 1);
+    await this.ctx.storage.put("documents", documents);
+
+    return deleted;
+  }
 }
 
 export default {
@@ -412,6 +461,74 @@ export default {
         }
       }
 
+      // GET /documents?userId=...&projectId=...
+      if (url.pathname === "/documents") {
+        try {
+          const userId = url.searchParams.get("userId");
+          const projectId = url.searchParams.get("projectId");
+
+          if (!userId || !projectId) {
+            return jsonResponse(
+              { error: "Se requiere userId y projectId válidos." },
+              400
+            );
+          }
+
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const project = await stub.getProject(projectId);
+
+          if (!project) {
+            return jsonResponse(
+              { error: "El proyecto solicitado no existe." },
+              404
+            );
+          }
+
+          const documents = await stub.getDocuments(projectId);
+          return jsonResponse({ success: true, documents: documents });
+        } catch (error) {
+          return jsonResponse(
+            { error: "Error leyendo los documentos.", details: error.message },
+            500
+          );
+        }
+      }
+
+      // GET /documents/:id?userId=...&projectId=...
+      if (url.pathname.startsWith("/documents/")) {
+        try {
+          const documentId = url.pathname.split("/")[2];
+          const userId = url.searchParams.get("userId");
+          const projectId = url.searchParams.get("projectId");
+
+          if (!documentId || !userId || !projectId) {
+            return jsonResponse(
+              { error: "Se requieren documentId, userId y projectId válidos." },
+              400
+            );
+          }
+
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const document = await stub.getDocument(documentId, projectId);
+
+          if (!document) {
+            return jsonResponse(
+              { error: "El documento solicitado no existe." },
+              404
+            );
+          }
+
+          return jsonResponse({ success: true, document: document });
+        } catch (error) {
+          return jsonResponse(
+            { error: "Error leyendo el documento.", details: error.message },
+            500
+          );
+        }
+      }
+
       // GET normal: prueba de diagnóstico manual. Usa un mismo id efímero
       // como userId y sessionId — es una conversación de prueba aislada,
       // sin memoria previa.
@@ -430,6 +547,42 @@ export default {
         }),
         headers: { "Content-Type": "application/json" }
       });
+    }
+
+    if (request.method === "DELETE") {
+      // DELETE /documents/:id?userId=...&projectId=...
+      if (url.pathname.startsWith("/documents/")) {
+        try {
+          const documentId = url.pathname.split("/")[2];
+          const userId = url.searchParams.get("userId");
+          const projectId = url.searchParams.get("projectId");
+
+          if (!documentId || !userId || !projectId) {
+            return jsonResponse(
+              { error: "Se requieren documentId, userId y projectId válidos." },
+              400
+            );
+          }
+
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const deleted = await stub.deleteDocument(documentId, projectId);
+
+          if (!deleted) {
+            return jsonResponse(
+              { error: "El documento solicitado no existe." },
+              404
+            );
+          }
+
+          return jsonResponse({ success: true, document: deleted });
+        } catch (error) {
+          return jsonResponse(
+            { error: "Error eliminando el documento.", details: error.message },
+            500
+          );
+        }
+      }
     }
 
     if (request.method === "POST") {
@@ -495,6 +648,66 @@ export default {
         } catch (error) {
           return jsonResponse(
             { error: "Error creando el proyecto.", details: error.message },
+            500
+          );
+        }
+      }
+
+      // POST /documents { userId, projectId, name, content }
+      if (url.pathname === "/documents") {
+        try {
+          const body = await request.json();
+          const userId = body.userId;
+          const projectId = body.projectId;
+          const name = body.name;
+          const content = body.content;
+
+          if (!userId || typeof userId !== "string") {
+            return jsonResponse(
+              { error: "No se recibió un userId válido." },
+              400
+            );
+          }
+          if (!projectId || typeof projectId !== "string") {
+            return jsonResponse(
+              { error: "No se recibió un projectId válido." },
+              400
+            );
+          }
+          if (!name || typeof name !== "string" || !name.trim()) {
+            return jsonResponse(
+              { error: "No se recibió un nombre de documento válido." },
+              400
+            );
+          }
+          if (!content || typeof content !== "string" || !content.trim()) {
+            return jsonResponse(
+              { error: "No se recibió contenido válido." },
+              400
+            );
+          }
+
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const project = await stub.getProject(projectId);
+
+          if (!project) {
+            return jsonResponse(
+              { error: "El proyecto solicitado no existe." },
+              404
+            );
+          }
+
+          const document = await stub.saveDocument(
+            projectId,
+            name.trim(),
+            content
+          );
+
+          return jsonResponse({ success: true, document: document });
+        } catch (error) {
+          return jsonResponse(
+            { error: "Error guardando el documento.", details: error.message },
             500
           );
         }
