@@ -95,6 +95,210 @@
     color: var(--lilac);
   }
 
+  .header-actions {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .projects-btn {
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 10px;
+    padding: 7px 10px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--bubble-user-text);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .projects-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+  }
+
+  .active-project {
+    display: none;
+    margin-top: 5px;
+    font-size: 12px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .active-project.visible {
+    display: block;
+  }
+
+  .projects-panel {
+    position: fixed;
+    inset: 0;
+    background: rgba(36, 27, 47, 0.35);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    z-index: 10;
+  }
+
+  .projects-panel.open {
+    display: flex;
+  }
+
+  .projects-card {
+    width: min(100%, 480px);
+    max-height: 82vh;
+    overflow-y: auto;
+    background: var(--bg-panel);
+    border-radius: 18px;
+    padding: 20px;
+    box-shadow: 0 18px 50px rgba(51, 32, 74, 0.22);
+  }
+
+  .projects-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .projects-card h2 {
+    margin: 0;
+    font-size: 18px;
+  }
+
+  .projects-close {
+    border: none;
+    background: transparent;
+    color: var(--ink-soft);
+    font-size: 22px;
+    cursor: pointer;
+  }
+
+  .new-project-btn {
+    width: 100%;
+    border: none;
+    border-radius: 11px;
+    padding: 10px 12px;
+    background: var(--plum);
+    color: var(--bubble-user-text);
+    font-family: inherit;
+    cursor: pointer;
+    margin-bottom: 14px;
+  }
+
+  .project-form {
+    display: none;
+    flex-direction: column;
+    gap: 9px;
+    margin-bottom: 16px;
+    padding: 14px;
+    border: 1px solid var(--border-soft);
+    border-radius: 13px;
+    background: var(--bg-app);
+  }
+
+  .project-form.open {
+    display: flex;
+  }
+
+  .project-form label {
+    font-size: 12px;
+    color: var(--ink-soft);
+  }
+
+  .project-form input,
+  .project-form textarea {
+    width: 100%;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 9px 10px;
+    font: inherit;
+    color: var(--ink);
+    background: var(--bg-panel);
+  }
+
+  .project-form textarea {
+    resize: vertical;
+    min-height: 70px;
+  }
+
+  .project-form-actions {
+    display: flex;
+    gap: 8px;
+  }
+
+  .project-form-actions button {
+    flex: 1;
+    border: none;
+    border-radius: 10px;
+    padding: 9px 10px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .project-cancel {
+    background: transparent;
+    color: var(--ink-soft);
+    border: 1px solid var(--border-soft) !important;
+  }
+
+  .project-list {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .project-item {
+    width: 100%;
+    text-align: left;
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: var(--bg-panel);
+    padding: 11px 12px;
+    cursor: pointer;
+  }
+
+  .project-item:hover {
+    background: var(--bg-app);
+  }
+
+  .project-item-name {
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .project-item-description {
+    margin-top: 3px;
+    color: var(--ink-soft);
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+
+  .project-empty {
+    color: var(--ink-soft);
+    font-size: 13px;
+    text-align: center;
+    padding: 12px 4px;
+  }
+
+  .exit-project-btn {
+    display: none;
+    width: 100%;
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    padding: 8px 10px;
+    background: transparent;
+    color: var(--ink-soft);
+    font-family: inherit;
+    cursor: pointer;
+    margin-bottom: 12px;
+  }
+
+  .exit-project-btn.visible {
+    display: block;
+  }
+
   .status-dot {
     width: 8px;
     height: 8px;
@@ -343,11 +547,37 @@
     <div class="header-text">
       <h1>Mini Valeria</h1>
       <p><span class="status-dot"></span>Lista para conversar</p>
+      <div class="active-project" id="active-project"></div>
+    </div>
+    <div class="header-actions">
+      <button class="projects-btn" id="projects-btn" type="button">Proyectos</button>
     </div>
   </header>
 
+  <div class="projects-panel" id="projects-panel" aria-hidden="true">
+    <div class="projects-card" role="dialog" aria-modal="true" aria-labelledby="projects-title">
+      <div class="projects-card-header">
+        <h2 id="projects-title">Proyectos</h2>
+        <button class="projects-close" id="projects-close" type="button" aria-label="Cerrar">×</button>
+      </div>
+      <button class="new-project-btn" id="new-project-btn" type="button">+ Nuevo proyecto</button>
+
+      <form class="project-form" id="project-form">
+        <label for="project-name">Nombre</label>
+        <input id="project-name" type="text" maxlength="120" required>
+        <label for="project-description">Descripción</label>
+        <textarea id="project-description" maxlength="500"></textarea>
+        <div class="project-form-actions">
+          <button class="project-cancel" id="project-cancel" type="button">Cancelar</button>
+          <button type="submit" style="background: var(--plum); color: var(--bubble-user-text);">Crear</button>
+        </div>
+      </form>
+
+      <div class="project-list" id="project-list"></div>
+    </div>
+  </div>
+
   <main class="chat" id="chat" aria-live="polite">
-    <!-- Los mensajes se insertan aquí por JS, incluidos los iniciales -->
   </main>
 
   <footer class="composer">
@@ -385,6 +615,7 @@
    * ------------------------------------------------------------------ */
 
   const SESSION_STORAGE_KEY = "miniValeriaSessionId";
+  const PROJECT_STORAGE_KEY = "miniValeriaProjectId";
 
   function generateUUID() {
     if (window.crypto && typeof window.crypto.randomUUID === "function") {
@@ -419,6 +650,9 @@
    * ------------------------------------------------------------------ */
 
   const USER_STORAGE_KEY = "miniValeriaUserId";
+
+  let activeProjectId = localStorage.getItem(PROJECT_STORAGE_KEY) || null;
+  let activeProjectName = null;
 
   function getOrCreateUserId() {
     let userId = localStorage.getItem(USER_STORAGE_KEY);
@@ -564,7 +798,12 @@
     return fetch(WORKER_BASE_URL + "/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: userId, sessionId: sessionId, message: userMessage })
+      body: JSON.stringify({
+        userId: userId,
+        sessionId: sessionId,
+        message: userMessage,
+        projectId: activeProjectId || undefined
+      })
     })
       .then(function (response) {
         if (!response.ok) {
@@ -696,12 +935,145 @@
   }
 
   /* ------------------------------------------------------------------
+   * PROYECTOS (V1.5)
+   * ------------------------------------------------------------------ */
+
+  const activeProjectEl = document.getElementById("active-project");
+  const projectsPanelEl = document.getElementById("projects-panel");
+  const projectListEl = document.getElementById("project-list");
+  const projectFormEl = document.getElementById("project-form");
+  const projectNameEl = document.getElementById("project-name");
+  const projectDescriptionEl = document.getElementById("project-description");
+
+  function startNewConversation(projectId, projectName) {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, generateUUID());
+    activeProjectId = projectId || null;
+    activeProjectName = projectName || null;
+
+    if (activeProjectId) {
+      localStorage.setItem(PROJECT_STORAGE_KEY, activeProjectId);
+    } else {
+      localStorage.removeItem(PROJECT_STORAGE_KEY);
+    }
+
+    activeProjectEl.textContent = activeProjectId ? "Proyecto: " + activeProjectName : "";
+    activeProjectEl.classList.toggle("visible", !!activeProjectId);
+    exitProjectEl.classList.toggle("visible", !!activeProjectId);
+    chatEl.innerHTML = "";
+    inputEl.value = "";
+    autoResize();
+    inputEl.focus();
+  }
+
+  function openProjectsPanel() {
+    projectsPanelEl.classList.add("open");
+    projectsPanelEl.setAttribute("aria-hidden", "false");
+    loadProjects();
+  }
+
+  function closeProjectsPanel() {
+    projectsPanelEl.classList.remove("open");
+    projectsPanelEl.setAttribute("aria-hidden", "true");
+    projectFormEl.classList.remove("open");
+  }
+
+  function renderProjects(projects) {
+    projectListEl.innerHTML = "";
+
+    if (!projects.length) {
+      const empty = document.createElement("div");
+      empty.className = "project-empty";
+      empty.textContent = "Todavía no tienes proyectos.";
+      projectListEl.appendChild(empty);
+      return;
+    }
+
+    projects.forEach(function (project) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "project-item";
+
+      const name = document.createElement("div");
+      name.className = "project-item-name";
+      name.textContent = project.name;
+
+      const description = document.createElement("div");
+      description.className = "project-item-description";
+      description.textContent = project.description || "Sin descripción.";
+
+      item.appendChild(name);
+      item.appendChild(description);
+      item.addEventListener("click", function () {
+        startNewConversation(project.id, project.name);
+        closeProjectsPanel();
+      });
+
+      projectListEl.appendChild(item);
+    });
+  }
+
+  function loadProjects() {
+    const userId = getOrCreateUserId();
+
+    fetch(WORKER_BASE_URL + "/projects?userId=" + encodeURIComponent(userId))
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("Respuesta HTTP no válida: " + response.status);
+        }
+        return response.json();
+      })
+      .then(function (data) {
+        renderProjects(Array.isArray(data.projects) ? data.projects : []);
+      })
+      .catch(function (error) {
+        console.error("Error al cargar proyectos:", error);
+        projectListEl.innerHTML = "";
+        const empty = document.createElement("div");
+        empty.className = "project-empty";
+        empty.textContent = "No se pudieron cargar los proyectos.";
+        projectListEl.appendChild(empty);
+      });
+  }
+
+  function createProject(name, description) {
+    const userId = getOrCreateUserId();
+
+    return fetch(WORKER_BASE_URL + "/projects", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: userId,
+        name: name,
+        description: description
+      })
+    }).then(function (response) {
+      if (!response.ok) {
+        throw new Error("Respuesta HTTP no válida: " + response.status);
+      }
+      return response.json();
+    });
+  }
+
+  function exitProject() {
+    startNewConversation(null, null);
+  }
+
+  /* ------------------------------------------------------------------
    * INTERFAZ DE CHAT (no debería necesitar cambios al conectar una IA)
    * ------------------------------------------------------------------ */
 
   const chatEl = document.getElementById("chat");
   const formEl = document.getElementById("composer-form");
   const inputEl = document.getElementById("message-input");
+
+  const exitProjectEl = document.createElement("button");
+  exitProjectEl.type = "button";
+  exitProjectEl.className = "exit-project-btn";
+  exitProjectEl.textContent = "Salir del proyecto";
+  exitProjectEl.addEventListener("click", exitProject);
+  document.querySelector("footer.composer").prepend(exitProjectEl);
+
+  activeProjectEl.classList.toggle("visible", !!activeProjectId);
 
   function appendMessage(sender, text) {
     const row = document.createElement("div");
@@ -771,6 +1143,54 @@
   });
 
   document.getElementById("send-btn").addEventListener("click", handleSend);
+
+  document.getElementById("projects-btn").addEventListener("click", openProjectsPanel);
+  document.getElementById("projects-close").addEventListener("click", closeProjectsPanel);
+  document.getElementById("new-project-btn").addEventListener("click", function () {
+    projectFormEl.classList.toggle("open");
+    if (projectFormEl.classList.contains("open")) projectNameEl.focus();
+  });
+  document.getElementById("project-cancel").addEventListener("click", function () {
+    projectFormEl.classList.remove("open");
+    projectFormEl.reset();
+  });
+
+  projectFormEl.addEventListener("submit", function (event) {
+    event.preventDefault();
+
+    const name = projectNameEl.value.trim();
+    const description = projectDescriptionEl.value.trim();
+    if (!name) return;
+
+    const submitBtn = projectFormEl.querySelector("button[type=\"submit\"]");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Creando...";
+
+    createProject(name, description)
+      .then(function (data) {
+        if (!data || !data.project) throw new Error("Proyecto no recibido.");
+        projectFormEl.reset();
+        projectFormEl.classList.remove("open");
+        renderProjects([data.project].concat(
+          Array.from(projectListEl.querySelectorAll(".project-item")).map(function () {
+            return null;
+          }).filter(Boolean)
+        ));
+        loadProjects();
+      })
+      .catch(function (error) {
+        console.error("Error al crear proyecto:", error);
+        alert("No se pudo crear el proyecto. Intenta de nuevo.");
+      })
+      .finally(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Crear";
+      });
+  });
+
+  projectsPanelEl.addEventListener("click", function (event) {
+    if (event.target === projectsPanelEl) closeProjectsPanel();
+  });
 
   inputEl.addEventListener("input", autoResize);
 
