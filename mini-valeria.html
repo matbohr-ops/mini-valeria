@@ -299,6 +299,36 @@
     display: block;
   }
 
+  .documents-btn { width: 100%; border: 1px solid var(--border-soft); border-radius: 10px; padding: 8px 10px; background: transparent; color: var(--plum); font-family: inherit; cursor: pointer; margin-bottom: 12px; }
+  .documents-btn:hover { background: var(--bg-app); }
+  .documents-panel { position: fixed; inset: 0; background: rgba(36, 27, 47, 0.35); display: none; align-items: center; justify-content: center; padding: 18px; z-index: 11; }
+  .documents-panel.open { display: flex; }
+  .documents-card { width: min(100%, 520px); max-height: 86vh; overflow-y: auto; background: var(--bg-panel); border-radius: 18px; padding: 20px; box-shadow: 0 18px 50px rgba(51, 32, 74, 0.22); }
+  .documents-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+  .documents-card h2 { margin: 0; font-size: 18px; }
+  .documents-subtitle { margin: 3px 0 0; color: var(--ink-soft); font-size: 12.5px; }
+  .document-form { display: none; flex-direction: column; gap: 9px; margin-bottom: 16px; padding: 14px; border: 1px solid var(--border-soft); border-radius: 13px; background: var(--bg-app); }
+  .document-form.open { display: flex; }
+  .document-form label { font-size: 12px; color: var(--ink-soft); }
+  .document-form input, .document-form textarea { width: 100%; border: 1px solid var(--border-soft); border-radius: 10px; padding: 9px 10px; font: inherit; color: var(--ink); background: var(--bg-panel); }
+  .document-form textarea { min-height: 180px; resize: vertical; line-height: 1.45; }
+  .document-form-actions { display: flex; gap: 8px; }
+  .document-form-actions button { flex: 1; border: none; border-radius: 10px; padding: 9px 10px; font-family: inherit; cursor: pointer; }
+  .document-list { display: flex; flex-direction: column; gap: 9px; }
+  .document-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--border-soft); border-radius: 12px; padding: 10px 12px; background: var(--bg-panel); }
+  .document-item-main { min-width: 0; flex: 1; cursor: pointer; }
+  .document-item-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+  .document-item-meta { margin-top: 3px; color: var(--ink-soft); font-size: 11.5px; }
+  .document-item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .document-action { border: 1px solid var(--border-soft); border-radius: 8px; padding: 6px 8px; background: transparent; color: var(--ink-soft); font-family: inherit; font-size: 12px; cursor: pointer; }
+  .document-action:hover { background: var(--bg-app); }
+  .document-action-delete { color: #8A4050; }
+  .document-view { display: none; margin-top: 14px; border: 1px solid var(--border-soft); border-radius: 12px; overflow: hidden; }
+  .document-view.open { display: block; }
+  .document-view-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg-app); border-bottom: 1px solid var(--border-soft); }
+  .document-view-title { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+  .document-content { margin: 0; padding: 14px; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 12.5px/1.5 Consolas, "Courier New", monospace; background: var(--bg-panel); }
+
   .status-dot {
     width: 8px;
     height: 8px;
@@ -574,6 +604,25 @@
       </form>
 
       <div class="project-list" id="project-list"></div>
+    </div>
+  </div>
+
+  <div class="documents-panel" id="documents-panel" aria-hidden="true">
+    <div class="documents-card" role="dialog" aria-modal="true" aria-labelledby="documents-title">
+      <div class="documents-card-header">
+        <div><h2 id="documents-title">Información del proyecto</h2><div class="documents-subtitle" id="documents-subtitle">Selecciona un proyecto para gestionar su información.</div></div>
+        <button class="projects-close" id="documents-close" type="button" aria-label="Cerrar">×</button>
+      </div>
+      <button class="new-project-btn" id="new-document-btn" type="button">+ Agregar información</button>
+      <form class="document-form" id="document-form">
+        <label for="document-name">Nombre</label>
+        <input id="document-name" type="text" maxlength="160" required placeholder="Ej. Arquitectura, notas, código...">
+        <label for="document-content">Contenido</label>
+        <textarea id="document-content" required placeholder="Pega aquí texto, código, Markdown, JSON, especificaciones, notas, etc."></textarea>
+        <div class="document-form-actions"><button class="project-cancel" id="document-cancel" type="button">Cancelar</button><button type="submit" style="background: var(--plum); color: var(--bubble-user-text);">Guardar</button></div>
+      </form>
+      <div class="document-list" id="document-list"></div>
+      <div class="document-view" id="document-view"><div class="document-view-header"><div class="document-view-title" id="document-view-title"></div><button class="document-action" id="document-view-close" type="button">Cerrar</button></div><pre class="document-content" id="document-view-content"></pre></div>
     </div>
   </div>
 
@@ -1054,8 +1103,62 @@
     });
   }
 
-  function exitProject() {
-    startNewConversation(null, null);
+  function exitProject() { startNewConversation(null, null); }
+
+  /* ------------------------------------------------------------------
+   * INFORMACIÓN DEL PROYECTO (V1.6-B.1)
+   * ------------------------------------------------------------------ */
+  const documentsPanelEl = document.getElementById("documents-panel");
+  const documentsSubtitleEl = document.getElementById("documents-subtitle");
+  const documentListEl = document.getElementById("document-list");
+  const documentFormEl = document.getElementById("document-form");
+  const documentNameEl = document.getElementById("document-name");
+  const documentContentEl = document.getElementById("document-content");
+  const documentViewEl = document.getElementById("document-view");
+  const documentViewTitleEl = document.getElementById("document-view-title");
+  const documentViewContentEl = document.getElementById("document-view-content");
+
+  function openDocumentsPanel() {
+    if (!activeProjectId) { alert("Primero entra a un proyecto para gestionar su información."); return; }
+    documentsPanelEl.classList.add("open");
+    documentsPanelEl.setAttribute("aria-hidden", "false");
+    documentsSubtitleEl.textContent = activeProjectName ? "Proyecto: " + activeProjectName : "Información guardada en este proyecto.";
+    documentFormEl.classList.remove("open"); closeDocumentView(); loadDocuments();
+  }
+  function closeDocumentsPanel() { documentsPanelEl.classList.remove("open"); documentsPanelEl.setAttribute("aria-hidden", "true"); documentFormEl.classList.remove("open"); closeDocumentView(); }
+  function getDocumentsUrl() { return WORKER_BASE_URL + "/documents?userId=" + encodeURIComponent(getOrCreateUserId()) + "&projectId=" + encodeURIComponent(activeProjectId); }
+  function loadDocuments() {
+    if (!activeProjectId) return;
+    documentListEl.innerHTML = '<div class="project-empty">Cargando información...</div>';
+    fetch(getDocumentsUrl()).then(function (response) { if (!response.ok) throw new Error("Respuesta HTTP no válida: " + response.status); return response.json(); }).then(function (data) { renderDocuments(Array.isArray(data.documents) ? data.documents : []); }).catch(function (error) { console.error("Error al cargar documentos:", error); documentListEl.innerHTML = '<div class="project-empty">No se pudo cargar la información.</div>'; });
+  }
+  function renderDocuments(documents) {
+    documentListEl.innerHTML = "";
+    if (!documents.length) { const empty = document.createElement("div"); empty.className = "project-empty"; empty.textContent = "Todavía no hay información guardada en este proyecto."; documentListEl.appendChild(empty); return; }
+    documents.forEach(function (documentRecord) {
+      const item = document.createElement("div"); item.className = "document-item";
+      const main = document.createElement("div"); main.className = "document-item-main"; main.title = "Abrir documento";
+      const name = document.createElement("div"); name.className = "document-item-name"; name.textContent = documentRecord.name;
+      const meta = document.createElement("div"); meta.className = "document-item-meta"; meta.textContent = new Date(documentRecord.createdAt).toLocaleString();
+      main.appendChild(name); main.appendChild(meta); main.addEventListener("click", function () { openDocument(documentRecord.id); });
+      const actions = document.createElement("div"); actions.className = "document-item-actions";
+      const openBtn = document.createElement("button"); openBtn.type = "button"; openBtn.className = "document-action"; openBtn.textContent = "Abrir"; openBtn.addEventListener("click", function () { openDocument(documentRecord.id); });
+      const deleteBtn = document.createElement("button"); deleteBtn.type = "button"; deleteBtn.className = "document-action document-action-delete"; deleteBtn.textContent = "Borrar"; deleteBtn.addEventListener("click", function () { deleteDocument(documentRecord.id, documentRecord.name); });
+      actions.appendChild(openBtn); actions.appendChild(deleteBtn); item.appendChild(main); item.appendChild(actions); documentListEl.appendChild(item);
+    });
+  }
+  function saveDocument(name, content) {
+    return fetch(WORKER_BASE_URL + "/documents", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: getOrCreateUserId(), projectId: activeProjectId, name: name, content: content }) }).then(function (response) { if (!response.ok) throw new Error("Respuesta HTTP no válida: " + response.status); return response.json(); });
+  }
+  function openDocument(documentId) {
+    const url = WORKER_BASE_URL + "/documents/" + encodeURIComponent(documentId) + "?userId=" + encodeURIComponent(getOrCreateUserId()) + "&projectId=" + encodeURIComponent(activeProjectId);
+    fetch(url).then(function (response) { if (!response.ok) throw new Error("Respuesta HTTP no válida: " + response.status); return response.json(); }).then(function (data) { if (!data.document) throw new Error("Documento no recibido."); documentViewTitleEl.textContent = data.document.name; documentViewContentEl.textContent = data.document.content; documentViewEl.classList.add("open"); documentViewEl.scrollIntoView({ behavior: "smooth", block: "nearest" }); }).catch(function (error) { console.error("Error al abrir documento:", error); alert("No se pudo abrir la información."); });
+  }
+  function closeDocumentView() { documentViewEl.classList.remove("open"); documentViewTitleEl.textContent = ""; documentViewContentEl.textContent = ""; }
+  function deleteDocument(documentId, documentName) {
+    if (!confirm('¿Borrar "' + documentName + '"?')) return;
+    const url = WORKER_BASE_URL + "/documents/" + encodeURIComponent(documentId) + "?userId=" + encodeURIComponent(getOrCreateUserId()) + "&projectId=" + encodeURIComponent(activeProjectId);
+    fetch(url, { method: "DELETE" }).then(function (response) { if (!response.ok) throw new Error("Respuesta HTTP no válida: " + response.status); return response.json(); }).then(function () { closeDocumentView(); loadDocuments(); }).catch(function (error) { console.error("Error al borrar documento:", error); alert("No se pudo borrar la información."); });
   }
 
   /* ------------------------------------------------------------------
@@ -1065,6 +1168,11 @@
   const chatEl = document.getElementById("chat");
   const formEl = document.getElementById("composer-form");
   const inputEl = document.getElementById("message-input");
+
+  const documentsBtnEl = document.createElement("button");
+  documentsBtnEl.type = "button"; documentsBtnEl.className = "documents-btn"; documentsBtnEl.textContent = "Información del proyecto";
+  documentsBtnEl.addEventListener("click", openDocumentsPanel);
+  document.querySelector("footer.composer").prepend(documentsBtnEl);
 
   const exitProjectEl = document.createElement("button");
   exitProjectEl.type = "button";
@@ -1146,6 +1254,12 @@
 
   document.getElementById("projects-btn").addEventListener("click", openProjectsPanel);
   document.getElementById("projects-close").addEventListener("click", closeProjectsPanel);
+  document.getElementById("documents-close").addEventListener("click", closeDocumentsPanel);
+  document.getElementById("document-view-close").addEventListener("click", closeDocumentView);
+  document.getElementById("new-document-btn").addEventListener("click", function () { if (!activeProjectId) return; documentFormEl.classList.toggle("open"); if (documentFormEl.classList.contains("open")) documentNameEl.focus(); });
+  document.getElementById("document-cancel").addEventListener("click", function () { documentFormEl.classList.remove("open"); documentFormEl.reset(); });
+  documentFormEl.addEventListener("submit", function (event) { event.preventDefault(); const name = documentNameEl.value.trim(); const content = documentContentEl.value; if (!name || !content.trim()) return; const submitBtn = documentFormEl.querySelector("button[type=\"submit\"]"); submitBtn.disabled = true; submitBtn.textContent = "Guardando..."; saveDocument(name, content).then(function (data) { if (!data || !data.document) throw new Error("Documento no recibido."); documentFormEl.reset(); documentFormEl.classList.remove("open"); closeDocumentView(); loadDocuments(); }).catch(function (error) { console.error("Error al guardar documento:", error); alert("No se pudo guardar la información. Intenta de nuevo."); }).finally(function () { submitBtn.disabled = false; submitBtn.textContent = "Guardar"; }); });
+  documentsPanelEl.addEventListener("click", function (event) { if (event.target === documentsPanelEl) closeDocumentsPanel(); });
   document.getElementById("new-project-btn").addEventListener("click", function () {
     projectFormEl.classList.toggle("open");
     if (projectFormEl.classList.contains("open")) projectNameEl.focus();
