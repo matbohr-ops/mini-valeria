@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mini Valeria</title>
+<style>
+  :root {
+    --bg-app: #EDE9F4;
+    --bg-panel: #FFFFFF;
+    --ink: #241B2F;
+    --ink-soft: #6B6178;
+    --plum: #4B3068;
+    --plum-deep: #33204A;
+    --lilac: #D8CBEE;
+    --accent: #E8A33D;
+    --bubble-user: #4B3068;
+    --bubble-user-text: #F6F1FC;
+    --bubble-bot: #F3EFFA;
+    --bubble-bot-text: #241B2F;
+    --border-soft: #E1D8F0;
+    --focus: #E8A33D;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg-app);
+    color: var(--ink);
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    min-height: 100vh;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 560px;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-panel);
+    min-height: 100vh;
+    box-shadow: 0 0 40px rgba(51, 32, 74, 0.08);
+  }
+
+  @media (min-width: 640px) {
+    .app {
+      min-height: 92vh;
+      margin: 4vh 0;
+      border-radius: 20px;
+      overflow: hidden;
+    }
+  }
+
+  header.app-header {
+    background: var(--plum);
+    color: var(--bubble-user-text);
+    padding: 18px 22px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .avatar {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    background: var(--accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--plum-deep);
+    flex-shrink: 0;
+  }
+
+  .header-text h1 {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+  }
+
+  .header-text p {
+    margin: 2px 0 0;
+    font-size: 12.5px;
+    color: var(--lilac);
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #7BD68A;
+    display: inline-block;
+    margin-right: 6px;
+  }
+
+  main.chat {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    background: var(--bg-panel);
+  }
+
+  .msg-row {
+    display: flex;
+    flex-direction: column;
+    max-width: 82%;
+  }
+
+  .msg-row.user {
+    align-self: flex-end;
+    align-items: flex-end;
+  }
+
+  .msg-row.bot {
+    align-self: flex-start;
+    align-items: flex-start;
+  }
+
+  .msg-label {
+    font-size: 11px;
+    color: var(--ink-soft);
+    margin: 0 4px 4px;
+  }
+
+  .bubble {
+    padding: 11px 15px;
+    border-radius: 16px;
+    font-size: 14.5px;
+    line-height: 1.45;
+    word-wrap: break-word;
+  }
+
+  .msg-row.user .bubble {
+    background: var(--bubble-user);
+    color: var(--bubble-user-text);
+    border-bottom-right-radius: 4px;
+  }
+
+  .msg-row.bot .bubble {
+    background: var(--bubble-bot);
+    color: var(--bubble-bot-text);
+    border-bottom-left-radius: 4px;
+  }
+
+  .typing-indicator .bubble {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    padding: 13px 16px;
+  }
+
+  .typing-indicator .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ink-soft);
+    opacity: 0.5;
+    animation: bounce 1.2s infinite ease-in-out;
+  }
+
+  .typing-indicator .dot:nth-child(2) { animation-delay: 0.15s; }
+  .typing-indicator .dot:nth-child(3) { animation-delay: 0.3s; }
+
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-4px); opacity: 1; }
+  }
+
+  footer.composer {
+    flex-shrink: 0;
+    padding: 14px 16px;
+    background: var(--bg-panel);
+    border-top: 1px solid var(--border-soft);
+  }
+
+  form.input-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+  }
+
+  textarea#message-input {
+    flex: 1;
+    resize: none;
+    max-height: 120px;
+    min-height: 44px;
+    padding: 11px 14px;
+    border-radius: 14px;
+    border: 1px solid var(--border-soft);
+    background: var(--bg-app);
+    color: var(--ink);
+    font-family: inherit;
+    font-size: 14.5px;
+    line-height: 1.4;
+    outline: none;
+  }
+
+  textarea#message-input:focus {
+    border-color: var(--focus);
+    box-shadow: 0 0 0 3px rgba(232, 163, 61, 0.18);
+  }
+
+  button#send-btn {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: var(--plum);
+    color: var(--bubble-user-text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease, transform 0.1s ease;
+  }
+
+  button#send-btn:hover {
+    background: var(--plum-deep);
+  }
+
+  button#send-btn:active {
+    transform: scale(0.94);
+  }
+
+  button#send-btn:focus-visible,
+  textarea#message-input:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  button#send-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  main.chat::-webkit-scrollbar {
+    width: 6px;
+  }
+  main.chat::-webkit-scrollbar-thumb {
+    background: var(--lilac);
+    border-radius: 3px;
+  }
+
+  .memory-suggestion {
+    align-self: stretch;
+    background: var(--bubble-bot);
+    border: 1px solid var(--lilac);
+    border-radius: 14px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .memory-suggestion-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--plum);
+  }
+
+  .memory-suggestion-body {
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--ink);
+  }
+
+  .memory-suggestion-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .memory-btn {
+    border: none;
+    border-radius: 10px;
+    padding: 7px 14px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.15s ease, opacity 0.15s ease;
+  }
+
+  .memory-btn:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  .memory-btn-save {
+    background: var(--plum);
+    color: var(--bubble-user-text);
+  }
+
+  .memory-btn-save:hover:not(:disabled) {
+    background: var(--plum-deep);
+  }
+
+  .memory-btn-dismiss {
+    background: transparent;
+    color: var(--ink-soft);
+    border: 1px solid var(--border-soft);
+  }
+
+  .memory-btn-dismiss:hover:not(:disabled) {
+    background: var(--bg-app);
+  }
+
+  @media (max-width: 380px) {
+    .memory-suggestion-actions {
+      flex-direction: column;
+    }
+    .memory-btn {
+      width: 100%;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .typing-indicator .dot {
+      animation: none;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="app-header">
+    <div class="avatar">MV</div>
+    <div class="header-text">
+      <h1>Mini Valeria</h1>
+      <p><span class="status-dot"></span>Lista para conversar</p>
+    </div>
+  </header>
+
+  <main class="chat" id="chat" aria-live="polite">
+    <!-- Los mensajes se insertan aquí por JS, incluidos los iniciales -->
+  </main>
+
+  <footer class="composer">
+    <form class="input-row" id="composer-form">
+      <textarea
+        id="message-input"
+        placeholder="Escribe un mensaje..."
+        rows="1"
+        aria-label="Escribe un mensaje para Mini Valeria"
+      ></textarea>
+      <button id="send-btn" type="button" aria-label="Enviar mensaje">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 20L20.5 12L4 4L4 9.5L15 12L4 14.5L4 20Z" fill="currentColor"/>
+        </svg>
+      </button>
+    </form>
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ------------------------------------------------------------------
+   * SESIÓN (sessionId)
+   * ------------------------------------------------------------------
+   * Identificador de la conversación actual. Se genera una sola vez por
+   * pestaña/sesión de navegador y se guarda en sessionStorage:
+   * - Sobrevive a una recarga (F5) de la página.
+   * - Se pierde al cerrar la pestaña (una nueva apertura empieza una
+   *   sesión nueva).
+   * No implica login ni identificación de usuario; es solo la forma en
+   * que el Worker sabe a qué Durable Object (conversación) pertenece
+   * cada mensaje.
+   * ------------------------------------------------------------------ */
+
+  const SESSION_STORAGE_KEY = "miniValeriaSessionId";
+
+  function generateUUID() {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return window.crypto.randomUUID();
+    }
+    // Fallback simple para navegadores sin crypto.randomUUID().
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      const r = (Math.random() * 16) | 0;
+      const v = c === "x" ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
+
+  function getOrCreateSessionId() {
+    let sessionId = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (!sessionId) {
+      sessionId = generateUUID();
+      sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+    }
+    return sessionId;
+  }
+
+  /* ------------------------------------------------------------------
+   * IDENTIDAD (userId) — V1.3
+   * ------------------------------------------------------------------
+   * A diferencia del sessionId (una conversación puntual, sessionStorage,
+   * se pierde al cerrar la pestaña), el userId identifica a Teo de forma
+   * estable en este navegador: vive en localStorage, así que sobrevive
+   * al cierre y reapertura de la pestaña/navegador. Todavía NO es login
+   * ni una cuenta real — es solo la identidad local que separa "memoria
+   * global de Teo" de "historial de esta conversación puntual".
+   * ------------------------------------------------------------------ */
+
+  const USER_STORAGE_KEY = "miniValeriaUserId";
+
+  function getOrCreateUserId() {
+    let userId = localStorage.getItem(USER_STORAGE_KEY);
+    if (!userId) {
+      userId = generateUUID();
+      localStorage.setItem(USER_STORAGE_KEY, userId);
+    }
+    return userId;
+  }
+
+  /* ------------------------------------------------------------------
+   * MOTOR DE RESPUESTAS DE MINI VALERIA
+   * ------------------------------------------------------------------
+   * getMiniValeriaReply() llama al backend real (Cloudflare Worker).
+   * El Worker recibe { userId, sessionId, message } por POST y devuelve
+   * { reply, memorySuggestion }. El sessionId identifica el Durable
+   * Object que mantiene el historial de esta conversación puntual; el
+   * userId identifica el Durable Object de memoria global de Teo
+   * (independiente de la sesión). El mensaje no viaja con historial
+   * adjunto porque el Worker/Durable Object ya lo reconstruye del lado
+   * del servidor. La API key del modelo (Gemini) vive únicamente como
+   * Secret dentro del Worker; nunca se expone en este frontend.
+   *
+   * Las funciones analyzeMessage / chooseIntent / buildReply /
+   * REPLY_TEMPLATES de más abajo eran el motor de simulación local
+   * anterior. Se dejan tal cual, sin usarse, por si se quieren
+   * recuperar como referencia o como respaldo (fallback) más adelante.
+   * ------------------------------------------------------------------ */
+
+  // Se guarda un pequeño historial en memoria (solo mientras la pestaña
+  // esté abierta) para que el "contexto básico de la conversación"
+  // pueda influir en la respuesta, p. ej. no repetir la misma intención.
+  const conversationState = {
+    lastIntent: null,
+    turnCount: 0
+  };
+
+  function analyzeMessage(text) {
+    const clean = text.trim();
+    const lower = clean.toLowerCase();
+
+    return {
+      raw: clean,
+      isQuestion: /[¿?]/.test(clean),
+      isGreeting: /^(hola|hey|buenas|qué tal|que tal|buenos días|buenas tardes|buenas noches)\b/.test(lower),
+      isShort: clean.split(/\s+/).length <= 3,
+      mentionsIdea: /\b(quiero|tengo una idea|se me ocurrió|estoy pensando en|me gustaría|planeo)\b/.test(lower),
+      mentionsProblem: /\b(no s[eé] c[oó]mo|no funciona|estoy atascad|no puedo|error|problema|me trab[eé])\b/.test(lower),
+      mentionsFeeling: /\b(frustrad|cansad|estresad|content|emocionad|preocupad|nervios)\b/.test(lower),
+      soundsAbsolute: /\b(siempre|nunca|todo el mundo|nadie|obviamente|es imposible|no hay forma)\b/.test(lower),
+      asksOpinion: /\b(qué opinas|tú qué piensas|te parece|crees que|deber[ií]a)\b/.test(lower)
+    };
+  }
+
+  function chooseIntent(features) {
+    // Orden de prioridad: primero lo emocional/problema, luego ideas,
+    // luego afirmaciones cuestionables, luego preguntas/opiniones,
+    // y por defecto una respuesta directa o de seguimiento.
+    if (features.mentionsFeeling) return "acknowledge_feeling";
+    if (features.mentionsProblem) return "help_breakdown";
+    if (features.mentionsIdea) return "turn_idea_into_steps";
+    if (features.soundsAbsolute) return "gentle_challenge";
+    if (features.asksOpinion) return "give_opinion";
+    if (features.isGreeting) return "greet";
+    if (features.isQuestion) return "direct_answer_placeholder";
+    if (features.isShort) return "light_followup";
+    return "direct_engage";
+  }
+
+  const REPLY_TEMPLATES = {
+    greet: [
+      "Hola, ¿qué anda pasando por tu cabeza hoy?",
+      "Hey, ¿en qué estamos hoy?",
+      "Buenas. Cuéntame, ¿qué tienes entre manos?"
+    ],
+    acknowledge_feeling: [
+      "Se nota que esto te está pesando un poco. Cuéntame qué pasó.",
+      "Ojo, primero lo primero: ¿cómo estás con esto? Después vemos el resto.",
+      "Entiendo. Vamos con calma, cuéntame más antes de saltar a soluciones."
+    ],
+    help_breakdown: [
+      "A ver, vamos por partes: ¿en qué punto exacto se traba esto?",
+      "Eso suena resolvible. ¿Qué es lo último que intentaste antes de que fallara?",
+      "Antes de seguir, separemos el problema: ¿es de idea, de herramienta, o de no saber por dónde empezar?"
+    ],
+    turn_idea_into_steps: [
+      "Me gusta. Para aterrizarla: ¿cuál sería el resultado que quieres ver primero?",
+      "Vamos a convertir eso en algo concreto. ¿Qué es lo mínimo que necesitarías para probarla?",
+      "Suena interesante. Dime, ¿qué parte de la idea tienes más clara y cuál es la más difusa todavía?"
+    ],
+    gentle_challenge: [
+      "Mmm, no estoy tan segura de que sea así de absoluto. ¿Qué te hace pensar eso?",
+      "Ojo con esa generalización, capaz hay una excepción que vale la pena mirar. ¿Me cuentas el caso concreto?",
+      "Yo no lo afirmaría tan tajante todavía. ¿Qué pasó puntualmente?"
+    ],
+    give_opinion: [
+      "Te doy mi opinión honesta cuando tenga más contexto real conectado, por ahora estoy simulando mi criterio. ¿Qué opción te llama más a ti?",
+      "Aún estoy en modo de práctica, así que mi opinión de verdad vendrá más adelante. Mientras tanto: ¿qué te preocupa de esa decisión?",
+      "Todavía no tengo suficiente para opinar con criterio real, pero cuéntame las opciones que tienes sobre la mesa."
+    ],
+    direct_answer_placeholder: [
+      "Buena pregunta. Ahora mismo solo puedo simular cómo respondería, no dar la respuesta real todavía. ¿Qué es lo que más te urge de esto?",
+      "Todavía no tengo una respuesta real que darte (estoy simulando mi comportamiento), pero cuéntame más del contexto.",
+      "Esa la voy a poder responder de verdad cuando esté conectada a algo más potente. Por ahora, ¿qué intuición tienes tú?"
+    ],
+    light_followup: [
+      "Cuéntame un poco más.",
+      "¿Y eso por qué?",
+      "Sigue, te escucho."
+    ],
+    direct_engage: [
+      "Entiendo. ¿Hacia dónde quieres llevar esto?",
+      "Vale, tiene sentido. ¿Qué sigue para ti?",
+      "Anotado. ¿Qué necesitas de mí sobre esto?"
+    ]
+  };
+
+  function buildReply(userMessage, intent) {
+    const options = REPLY_TEMPLATES[intent] || REPLY_TEMPLATES.direct_engage;
+    // Evita repetir literalmente la misma frase que la última vez.
+    const pool = options.length > 1
+      ? options.filter((_, i) => options[i] !== conversationState.lastPhrase)
+      : options;
+    const chosen = pool[Math.floor(Math.random() * pool.length)];
+    conversationState.lastPhrase = chosen;
+    conversationState.lastIntent = intent;
+    conversationState.turnCount += 1;
+    return chosen;
+  }
+
+  // Base del Worker, reutilizada tanto para el endpoint de chat como para
+  // el endpoint de memoria (/memory), sin tocar ninguno de los dos.
+  const WORKER_BASE_URL = "https://minivaleriabridge.matbohr.workers.dev";
+
+  // Valor por defecto cuando no hay memorySuggestion válida (respuesta
+  // normal del Worker sin sugerencia, o fallback ante error de red).
+  const NO_MEMORY_SUGGESTION = { shouldSuggest: false, content: null };
+
+  function getMiniValeriaReply(userMessage) {
+    const userId = getOrCreateUserId();
+    const sessionId = getOrCreateSessionId();
+
+    return fetch(WORKER_BASE_URL + "/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: userId, sessionId: sessionId, message: userMessage })
+    })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("Respuesta HTTP no válida: " + response.status);
+        }
+        return response.json();
+      })
+      .then(function (data) {
+        if (!data || typeof data.reply !== "string") {
+          throw new Error("Formato de respuesta inesperado del Worker.");
+        }
+        // memorySuggestion es opcional/aditivo: si el Worker no la manda
+        // (o llega en un formato inesperado), simplemente no se sugiere
+        // nada, sin romper el flujo normal de la respuesta.
+        const memorySuggestion =
+          data.memorySuggestion && typeof data.memorySuggestion === "object"
+            ? data.memorySuggestion
+            : NO_MEMORY_SUGGESTION;
+        return { reply: data.reply, memorySuggestion: memorySuggestion };
+      })
+      .catch(function (error) {
+        console.error("Error al contactar a Mini Valeria:", error);
+        return {
+          reply: "Se me dificultó conectarme justo ahora. ¿Puedes intentar de nuevo en un momento?",
+          memorySuggestion: NO_MEMORY_SUGGESTION
+        };
+      });
+  }
+
+  /* ------------------------------------------------------------------
+   * SUGERENCIA DE MEMORIA (V1.2-C)
+   * ------------------------------------------------------------------
+   * Pura capa de interfaz: no decide qué recordar (eso ya lo hace el
+   * Worker/backend en memorySuggestion), solo la muestra y, si Teo
+   * confirma, la envía al endpoint /memory ya existente. Nunca guarda
+   * nada por su cuenta.
+   * ------------------------------------------------------------------ */
+
+  function shouldShowMemorySuggestion(memorySuggestion) {
+    return (
+      !!memorySuggestion &&
+      memorySuggestion.shouldSuggest === true &&
+      typeof memorySuggestion.content === "string" &&
+      memorySuggestion.content.trim().length > 0
+    );
+  }
+
+  function saveMemorySuggestion(content) {
+    const userId = getOrCreateUserId();
+
+    return fetch(WORKER_BASE_URL + "/memory", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: userId, text: content })
+    }).then(function (response) {
+      if (!response.ok) {
+        throw new Error("Respuesta HTTP no válida: " + response.status);
+      }
+      return true;
+    });
+  }
+
+  function appendMemorySuggestion(content) {
+    const row = document.createElement("div");
+    row.className = "memory-suggestion";
+
+    const header = document.createElement("div");
+    header.className = "memory-suggestion-header";
+    header.textContent = "🧠 Esto podría ser útil recordar";
+
+    const body = document.createElement("div");
+    body.className = "memory-suggestion-body";
+    body.textContent = content;
+
+    const actions = document.createElement("div");
+    actions.className = "memory-suggestion-actions";
+
+    const saveBtn = document.createElement("button");
+    saveBtn.type = "button";
+    saveBtn.className = "memory-btn memory-btn-save";
+    saveBtn.textContent = "Guardar";
+
+    const dismissBtn = document.createElement("button");
+    dismissBtn.type = "button";
+    dismissBtn.className = "memory-btn memory-btn-dismiss";
+    dismissBtn.textContent = "No, gracias";
+
+    actions.appendChild(saveBtn);
+    actions.appendChild(dismissBtn);
+
+    row.appendChild(header);
+    row.appendChild(body);
+    row.appendChild(actions);
+    chatEl.appendChild(row);
+    scrollToBottom();
+
+    dismissBtn.addEventListener("click", function () {
+      // No, gracias: solo retira la tarjeta. No se llama a /memory ni se
+      // guarda absolutamente nada.
+      row.remove();
+    });
+
+    saveBtn.addEventListener("click", function () {
+      saveBtn.disabled = true;
+      dismissBtn.disabled = true;
+      saveBtn.textContent = "Guardando...";
+
+      saveMemorySuggestion(content)
+        .then(function () {
+          // Guardado exitoso: reemplaza la tarjeta por una confirmación
+          // breve y luego la retira.
+          body.textContent = "";
+          actions.remove();
+          header.textContent = "Memoria guardada.";
+          setTimeout(function () {
+            row.remove();
+          }, 1500);
+        })
+        .catch(function (error) {
+          console.error("Error al guardar la memoria:", error);
+          saveBtn.disabled = false;
+          dismissBtn.disabled = false;
+          saveBtn.textContent = "Guardar";
+          header.textContent = "No se pudo guardar. Intenta de nuevo.";
+        });
+    });
+
+    return row;
+  }
+
+  /* ------------------------------------------------------------------
+   * INTERFAZ DE CHAT (no debería necesitar cambios al conectar una IA)
+   * ------------------------------------------------------------------ */
+
+  const chatEl = document.getElementById("chat");
+  const formEl = document.getElementById("composer-form");
+  const inputEl = document.getElementById("message-input");
+
+  function appendMessage(sender, text) {
+    const row = document.createElement("div");
+    row.className = "msg-row " + sender;
+
+    const label = document.createElement("div");
+    label.className = "msg-label";
+    label.textContent = sender === "user" ? "Tú" : "Mini Valeria";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = text;
+
+    row.appendChild(label);
+    row.appendChild(bubble);
+    chatEl.appendChild(row);
+    scrollToBottom();
+    return row;
+  }
+
+  function appendTypingIndicator() {
+    const row = document.createElement("div");
+    row.className = "msg-row bot typing-indicator";
+    row.innerHTML =
+      '<div class="msg-label">Mini Valeria</div>' +
+      '<div class="bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+    chatEl.appendChild(row);
+    scrollToBottom();
+    return row;
+  }
+
+  function scrollToBottom() {
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  function autoResize() {
+    inputEl.style.height = "auto";
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + "px";
+  }
+
+  async function handleSend() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+
+    appendMessage("user", text);
+    inputEl.value = "";
+    autoResize();
+    inputEl.focus();
+
+    const typingRow = appendTypingIndicator();
+    const result = await getMiniValeriaReply(text);
+    typingRow.remove();
+    appendMessage("bot", result.reply);
+
+    if (shouldShowMemorySuggestion(result.memorySuggestion)) {
+      appendMemorySuggestion(result.memorySuggestion.content);
+    }
+  }
+
+  // Nota de compatibilidad: se maneja el envío directamente por click
+  // y por la tecla Enter, en lugar de depender del evento "submit" del
+  // <form>. Algunos entornos de previsualización en sandbox (como la
+  // vista previa de artefactos) bloquean la navegación/submit de
+  // formularios, por lo que ese evento nunca llegaba a dispararse ahí.
+  formEl.addEventListener("submit", function (event) {
+    event.preventDefault();
+  });
+
+  document.getElementById("send-btn").addEventListener("click", handleSend);
+
+  inputEl.addEventListener("input", autoResize);
+
+  inputEl.addEventListener("keydown", function (event) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSend();
+    }
+  });
+
+})();
+</script>
+
+</body>
+</html>

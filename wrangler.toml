@@ -1,0 +1,37 @@
+name = "minivaleriabridge"
+main = "src/worker.js"
+compatibility_date = "2026-09-15"
+
+# -----------------------------------------------------------------------
+# Secret existente (NO se define aquí ni se toca): GEMINI_API_KEY ya está
+# configurado como Secret en el Worker desplegado en Cloudflare. Los
+# Secrets nunca viven en wrangler.toml; se gestionan aparte (dashboard o
+# `wrangler secret put GEMINI_API_KEY`) y no requieren ninguna acción.
+# -----------------------------------------------------------------------
+
+# Durable Object binding: le da al Worker acceso a la clase
+# ConversationSession (exportada en src/worker.js) bajo el nombre
+# env.CONVERSATION_SESSION, que es exactamente el nombre que usa el
+# código: env.CONVERSATION_SESSION.idFromName(...) / .get(...).
+[[durable_objects.bindings]]
+name = "CONVERSATION_SESSION"
+class_name = "ConversationSession"
+
+# Nuevo en V1.3: binding para la memoria global por usuario, independiente
+# de sessionId. env.USER_MEMORY.idFromName(userId) / .get(...).
+[[durable_objects.bindings]]
+name = "USER_MEMORY"
+class_name = "UserMemory"
+
+# Migración v1 (YA APLICADA, no se toca): registró ConversationSession
+# como Durable Object nuevo la primera vez.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ConversationSession"]
+
+# Migración v2 (NUEVA, V1.3): registra la clase UserMemory como Durable
+# Object nuevo, también respaldado por SQLite. Un tag nuevo porque v1 ya
+# fue aplicado y no puede reutilizarse ni modificarse.
+[[migrations]]
+tag = "v2"
+new_sqlite_classes = ["UserMemory"]
