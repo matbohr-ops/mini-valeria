@@ -1,0 +1,524 @@
+import { DurableObject } from "cloudflare:workers";
+
+const SYSTEM_PROMPT = `
+Eres Mini Valeria, un asistente personal diseñado para trabajar en equipo con Teo.
+
+Tu propósito no es solamente responder preguntas. Tu propósito es ayudar a Teo a pensar,
+entender, decidir, crear y convertir ideas en acciones concretas.
+
+PERSONALIDAD:
+- Cálida, cercana, curiosa, inteligente y natural.
+- Proactiva, pero no invasiva.
+- Honesta y crítica cuando sea necesario.
+- Creativa, adaptable, independiente y orientada a objetivos.
+- Paciente con temas de aprendizaje, especialmente IA y programación.
+- No estás aquí para darle siempre la razón a Teo.
+- Si detectas un error, una mala idea o una alternativa mejor, dilo con respeto y explica por qué.
+- Puedes decir cosas como "Ojo con esto", "Se me ocurre otra forma", "Sí, pero..." o "Vamos por partes".
+- Puedes usar ocasionalmente "jajaja", pero sin abusar.
+- Hablas de manera natural y conversacional.
+- No uses "parcero".
+- No uses lenguaje inclusivo.
+- Teo toma las decisiones finales.
+
+ESTILO DE RESPUESTA:
+- Prioriza respuestas naturales, breves y conversacionales.
+- Como regla general, responde en 1-3 párrafos cortos.
+- Si una idea puede explicarse en pocas frases, no la alargues innecesariamente.
+- No repitas ni reformules extensamente lo que Teo acaba de decir.
+- Cuando necesites contexto, haz una pregunta concreta en lugar de explicar durante varios
+  párrafos por qué necesitas ese contexto.
+- Evita introducciones genéricas o frases de relleno que no aporten información.
+- No conviertas cada respuesta en una lista, guía o mini-artículo.
+- Puedes responder más extensamente cuando el tema realmente lo requiera, cuando haya un
+  problema complejo o cuando Teo pida explícitamente una explicación detallada.
+- Mantén el tono de una compañera de equipo: cercana, inteligente, directa y útil.
+- No confundas ser útil con decir mucho.
+- Prioriza avanzar la conversación sobre explicar de más.
+- Si una respuesta puede darse de forma sencilla, elige la versión sencilla.
+- Principio general: di lo necesario para avanzar la conversación y profundiza solo cuando
+  haga falta.
+
+FORMA DE AYUDAR:
+Cuando Teo tenga una idea, ten esto en mente sin necesidad de explicarlo paso a paso ni de
+convertirlo en una lista dentro de tu respuesta:
+1. Entiende qué quiere conseguir.
+2. Ayúdalo a aclarar la idea.
+3. Identifica las partes importantes.
+4. Detecta obstáculos o información faltante.
+5. Divide el problema en pasos.
+6. Propón un siguiente paso concreto y sencillo.
+
+ADAPTACIÓN:
+- En aprendizaje y programación: explica de forma clara y progresiva, sin asumir conocimientos avanzados.
+- En proyectos: sé estructurada, estratégica y orientada a la acción.
+- En negocios: sé práctica, analítica y crítica.
+- En temas cotidianos, películas, fútbol o tecnología: conversa de forma natural.
+- En temas serios: sé cuidadosa, tranquila y directa.
+
+REGLAS:
+- Nunca inventes información para parecer inteligente.
+- Si no sabes algo, dilo.
+- Distingue hechos de opiniones o estimaciones.
+- No hagas preguntas innecesarias.
+- Si puedes resolver algo directamente, hazlo.
+- No conviertas cada respuesta en una lista de preguntas.
+- Tu objetivo es ayudar a Teo a pensar mejor, no pensar por él.
+
+RELACIÓN:
+Teo y Mini Valeria trabajan como un equipo.
+Eres una compañera y aliada, no una autoridad.
+Tienes criterio propio y puedes estar en desacuerdo con Teo cuando exista una buena razón.
+Tu personalidad puede evolucionar con el tiempo, pero estos principios son la base.
+`;
+
+const RECENT_TURNS_WINDOW = 10;
+
+const GEMINI_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent";
+
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type"
+};
+
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status: status,
+    headers: {
+      "Content-Type": "application/json",
+      ...CORS_HEADERS
+    }
+  });
+}
+
+// Construye el system prompt final para una llamada a Gemini, inyectando
+// las memorias globales del usuario (userId) y las instrucciones de
+// detección de memoria sugerida. Idéntico en contenido a lo que ya
+// funcionaba en V1.2 — solo cambia de dónde vienen las `memories` (antes
+// las leía ConversationSession de sí misma; ahora se las pasan desde
+// afuera, ya resueltas por userId).
+function buildSystemPromptWithMemory(memories) {
+  const memoryContext =
+    memories.length > 0
+      ? memories.map((memory) => `- ${memory.text}`).join("\n")
+      : "No hay memorias guardadas todavía.";
+
+  return `${SYSTEM_PROMPT}
+
+MEMORIAS GUARDADAS DE TEO:
+
+${memoryContext}
+
+Usa estas memorias como contexto cuando sean relevantes para responder a Teo.
+
+No menciones las memorias como una lista ni digas que las estás leyendo internamente.
+
+Si una memoria no es relevante para la conversación actual, simplemente ignórala.
+
+DETECCIÓN DE MEMORIA SUGERIDA:
+
+Además de responder a Teo, analiza si su mensaje contiene información que podría ser útil
+recordar en conversaciones futuras.
+
+Solo considera una posible memoria cuando la información tenga una alta probabilidad de
+seguir siendo útil durante semanas o meses.
+
+Ejemplos de información que puede ser útil recordar:
+- preferencias personales o de comunicación;
+- preferencias sobre cómo trabajar o aprender;
+- objetivos de largo plazo;
+- decisiones importantes sobre proyectos;
+- información estable sobre proyectos en curso;
+- instrucciones que Teo quiera mantener para futuras conversaciones;
+- otra información estable que mejore significativamente conversaciones futuras.
+
+NO sugieras memorias para:
+- comentarios casuales;
+- estados temporales;
+- información trivial;
+- información específica de una conversación que probablemente no vuelva a ser relevante;
+- preguntas o solicitudes normales;
+- información que ya esté claramente presente en las memorias guardadas.
+
+No sugieras más de una memoria por mensaje.
+
+Cuando exista una posible memoria, debes resumirla de forma breve y clara, como una
+afirmación independiente que pueda guardarse directamente como memoria.
+
+La memoria sugerida NO debe guardarse automáticamente.
+
+Debes devolver siempre tu respuesta y la información de memoria sugerida en formato JSON
+válido con exactamente esta estructura:
+
+{
+  "reply": "respuesta natural para Teo",
+  "memorySuggestion": {
+    "shouldSuggest": true,
+    "content": "memoria resumida"
+  }
+}
+
+Si no existe una memoria que valga la pena sugerir, devuelve:
+
+{
+  "reply": "respuesta natural para Teo",
+  "memorySuggestion": {
+    "shouldSuggest": false,
+    "content": null
+  }
+}
+
+No añadas texto fuera de este JSON.
+`;
+}
+
+/**
+ * ConversationSession (V1.3): representa UNA conversación activa,
+ * identificada por sessionId. Responsabilidad única: el historial de
+ * turnos de esa conversación (this.ctx.storage, key "history").
+ *
+ * Ya NO guarda ni lee memorias por su cuenta — las recibe como parámetro
+ * en processMessage(), resueltas por el Worker desde el UserMemory del
+ * userId correspondiente. Esto la desacopla completamente de la
+ * identidad del usuario: solo le importa la conversación.
+ */
+export class ConversationSession extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+  }
+
+  // Se conserva EXCLUSIVAMENTE para la migración de memorias antiguas
+  // (guardadas por sessionId bajo el sistema V1.2, key "memories" de este
+  // mismo storage). No se usa en el flujo normal de conversación de
+  // V1.3. Candidata a eliminarse una vez confirmada la migración a
+  // UserMemory y validado que ya no hace falta leer datos legado.
+  async getLegacyMemories() {
+    return (await this.ctx.storage.get("memories")) || [];
+  }
+
+  async processMessage(message, memories) {
+    const history = (await this.ctx.storage.get("history")) || [];
+
+    const userTurn = {
+      role: "user",
+      text: message,
+      timestamp: Date.now()
+    };
+    history.push(userTurn);
+
+    const recentTurns = history.slice(-RECENT_TURNS_WINDOW);
+    const contents = recentTurns.map((turn) => ({
+      role: turn.role,
+      parts: [{ text: turn.text }]
+    }));
+
+    const response = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": this.env.GEMINI_API_KEY
+      },
+      body: JSON.stringify({
+        systemInstruction: {
+          parts: [{ text: buildSystemPromptWithMemory(memories) }]
+        },
+        contents: contents,
+        generationConfig: {
+          responseMimeType: "application/json"
+        }
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      const error = new Error("Gemini respondió con un error.");
+      error.geminiStatus = response.status;
+      error.geminiBody = data;
+      throw error;
+    }
+
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    let parsedResponse;
+    try {
+      parsedResponse = JSON.parse(rawText);
+    } catch (error) {
+      parsedResponse = {
+        reply: rawText || "No recibí una respuesta de Gemini.",
+        memorySuggestion: {
+          shouldSuggest: false,
+          content: null
+        }
+      };
+    }
+
+    const reply =
+      typeof parsedResponse.reply === "string"
+        ? parsedResponse.reply
+        : "No recibí una respuesta válida de Gemini.";
+
+    const memorySuggestion = {
+      shouldSuggest: parsedResponse.memorySuggestion?.shouldSuggest === true,
+      content:
+        typeof parsedResponse.memorySuggestion?.content === "string"
+          ? parsedResponse.memorySuggestion.content
+          : null
+    };
+
+    const modelTurn = {
+      role: "model",
+      text: reply,
+      timestamp: Date.now()
+    };
+    history.push(modelTurn);
+    await this.ctx.storage.put("history", history);
+
+    return { reply, memorySuggestion };
+  }
+}
+
+/**
+ * UserMemory (nuevo en V1.3): memoria global persistente, identificada
+ * por userId — independiente de cualquier sessionId/conversación
+ * puntual. Misma forma de dato que ya usaba ConversationSession en V1.2
+ * (id, text, createdAt), solo que ahora vive en su propio objeto, uno
+ * por usuario en vez de uno por sesión.
+ */
+export class UserMemory extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+  }
+
+  async saveMemory(text) {
+    const memories = (await this.ctx.storage.get("memories")) || [];
+
+    const memory = {
+      id: crypto.randomUUID(),
+      text: text,
+      createdAt: Date.now()
+    };
+    memories.push(memory);
+
+    await this.ctx.storage.put("memories", memories);
+
+    return memory;
+  }
+
+  async getMemories() {
+    return (await this.ctx.storage.get("memories")) || [];
+  }
+}
+
+export default {
+  async fetch(request, env) {
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: CORS_HEADERS
+      });
+    }
+
+    const url = new URL(request.url);
+
+    if (request.method === "GET") {
+      // GET /memories?userId=... (antes era ?sessionId=...)
+      if (url.pathname === "/memories") {
+        try {
+          const userId = url.searchParams.get("userId");
+
+          if (!userId) {
+            return jsonResponse(
+              { error: "No se recibió un userId válido." },
+              400
+            );
+          }
+
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const memories = await stub.getMemories();
+
+          return jsonResponse({ success: true, memories: memories });
+        } catch (error) {
+          return jsonResponse(
+            { error: "Error leyendo las memorias.", details: error.message },
+            500
+          );
+        }
+      }
+
+      // GET normal: prueba de diagnóstico manual. Usa un mismo id efímero
+      // como userId y sessionId — es una conversación de prueba aislada,
+      // sin memoria previa.
+      const message =
+        url.searchParams.get("message") ||
+        "Hola Mini Valeria. Esta es una prueba de conexión. Respóndeme brevemente.";
+
+      const diagnosticId = "diagnostic-" + crypto.randomUUID();
+
+      request = new Request(request, {
+        method: "POST",
+        body: JSON.stringify({
+          userId: diagnosticId,
+          sessionId: diagnosticId,
+          message: message
+        }),
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+
+    if (request.method === "POST") {
+      // POST /memory { userId, text } (antes era { sessionId, text })
+      if (url.pathname === "/memory") {
+        try {
+          const body = await request.json();
+          const userId = body.userId;
+          const text = body.text;
+
+          if (!userId || typeof userId !== "string") {
+            return jsonResponse(
+              { error: "No se recibió un userId válido." },
+              400
+            );
+          }
+          if (!text || typeof text !== "string") {
+            return jsonResponse(
+              { error: "No se recibió ninguna memoria." },
+              400
+            );
+          }
+
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const memory = await stub.saveMemory(text);
+
+          return jsonResponse({ success: true, memory: memory });
+        } catch (error) {
+          return jsonResponse(
+            { error: "Error guardando la memoria.", details: error.message },
+            500
+          );
+        }
+      }
+
+      // POST /migrate-memories { sessionId, userId } — TEMPORAL, solo
+      // para la migración puntual de V1.3. No borra los datos antiguos
+      // de ConversationSession; los copia a UserMemory, evitando
+      // duplicar textos ya presentes si se vuelve a ejecutar. Candidato
+      // a eliminarse del código una vez confirmada la migración.
+      if (url.pathname === "/migrate-memories") {
+        try {
+          const body = await request.json();
+          const sessionId = body.sessionId;
+          const userId = body.userId;
+
+          if (!sessionId || typeof sessionId !== "string") {
+            return jsonResponse(
+              { error: "No se recibió un sessionId válido." },
+              400
+            );
+          }
+          if (!userId || typeof userId !== "string") {
+            return jsonResponse(
+              { error: "No se recibió un userId válido." },
+              400
+            );
+          }
+
+          const sessionDoId = env.CONVERSATION_SESSION.idFromName(sessionId);
+          const sessionStub = env.CONVERSATION_SESSION.get(sessionDoId);
+          const legacyMemories = await sessionStub.getLegacyMemories();
+
+          const userDoId = env.USER_MEMORY.idFromName(userId);
+          const userStub = env.USER_MEMORY.get(userDoId);
+          const existingMemories = await userStub.getMemories();
+          const existingTexts = new Set(existingMemories.map((m) => m.text));
+
+          const migrated = [];
+          const skipped = [];
+
+          for (const legacyMemory of legacyMemories) {
+            if (existingTexts.has(legacyMemory.text)) {
+              skipped.push(legacyMemory.text);
+              continue;
+            }
+            const saved = await userStub.saveMemory(legacyMemory.text);
+            existingTexts.add(legacyMemory.text);
+            migrated.push(saved);
+          }
+
+          return jsonResponse({
+            success: true,
+            migratedCount: migrated.length,
+            skippedCount: skipped.length,
+            migrated: migrated,
+            skipped: skipped
+          });
+        } catch (error) {
+          return jsonResponse(
+            { error: "Error migrando las memorias.", details: error.message },
+            500
+          );
+        }
+      }
+
+      // POST normal → chat. Ahora espera { userId, sessionId, message }.
+      try {
+        const body = await request.json();
+        const userId = body.userId;
+        const sessionId = body.sessionId;
+        const message = body.message;
+
+        if (!userId || typeof userId !== "string") {
+          return jsonResponse(
+            { error: "No se recibió un userId válido." },
+            400
+          );
+        }
+        if (!sessionId || typeof sessionId !== "string") {
+          return jsonResponse(
+            { error: "No se recibió un sessionId válido." },
+            400
+          );
+        }
+        if (!message || typeof message !== "string") {
+          return jsonResponse(
+            { error: "No se recibió ningún mensaje." },
+            400
+          );
+        }
+
+        const sessionDoId = env.CONVERSATION_SESSION.idFromName(sessionId);
+        const sessionStub = env.CONVERSATION_SESSION.get(sessionDoId);
+
+        const userDoId = env.USER_MEMORY.idFromName(userId);
+        const userStub = env.USER_MEMORY.get(userDoId);
+        const memories = await userStub.getMemories();
+
+        const result = await sessionStub.processMessage(message, memories);
+
+        return jsonResponse({
+          reply: result.reply,
+          memorySuggestion: result.memorySuggestion
+        });
+      } catch (error) {
+        return jsonResponse(
+          {
+            error: "Error interno del Worker.",
+            details: error.message,
+            geminiStatus: error.geminiStatus || null,
+            geminiBody: error.geminiBody || null
+          },
+          500
+        );
+      }
+    }
+
+    return jsonResponse(
+      { error: "Mini Valeria espera una petición GET o POST." },
+      405
+    );
+  }
+};
