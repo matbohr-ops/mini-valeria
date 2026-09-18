@@ -352,6 +352,75 @@
   .context-actions button { flex: 1; border: none; border-radius: 10px; padding: 9px 10px; font-family: inherit; cursor: pointer; }
   .context-status { margin-top: 9px; color: var(--ink-soft); font-size: 12px; }
 
+  .conversations-btn {
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 10px;
+    padding: 7px 10px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--bubble-user-text);
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+
+  .conversations-btn:hover { background: rgba(255, 255, 255, 0.16); }
+
+  .conversations-panel {
+    position: fixed;
+    inset: 0;
+    background: rgba(36, 27, 47, 0.35);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    z-index: 14;
+  }
+
+  .conversations-panel.open { display: flex; }
+
+  .conversations-card {
+    width: min(100%, 480px);
+    max-height: 82vh;
+    overflow-y: auto;
+    background: var(--bg-panel);
+    border-radius: 18px;
+    padding: 20px;
+    box-shadow: 0 18px 50px rgba(51, 32, 74, 0.22);
+  }
+
+  .conversation-list {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .conversation-item {
+    width: 100%;
+    text-align: left;
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: var(--bg-panel);
+    padding: 11px 12px;
+    cursor: pointer;
+  }
+
+  .conversation-item:hover { background: var(--bg-app); }
+  .conversation-item.active { border-color: var(--accent); background: var(--bg-app); }
+  .conversation-item-name { font-weight: 600; font-size: 14px; }
+  .conversation-item-meta { margin-top: 3px; color: var(--ink-soft); font-size: 11.5px; }
+
+  .new-conversation-btn {
+    width: 100%;
+    border: none;
+    border-radius: 11px;
+    padding: 10px 12px;
+    background: var(--plum);
+    color: var(--bubble-user-text);
+    font-family: inherit;
+    cursor: pointer;
+    margin-bottom: 14px;
+  }
+
   .status-dot {
     width: 8px;
     height: 8px;
@@ -603,9 +672,21 @@
       <div class="active-project" id="active-project"></div>
     </div>
     <div class="header-actions">
+      <button class="conversations-btn" id="conversations-btn" type="button">Conversaciones</button>
       <button class="projects-btn" id="projects-btn" type="button">Proyectos</button>
     </div>
   </header>
+
+  <div class="conversations-panel" id="conversations-panel" aria-hidden="true">
+    <div class="conversations-card" role="dialog" aria-modal="true" aria-labelledby="conversations-title">
+      <div class="projects-card-header">
+        <h2 id="conversations-title">Conversaciones</h2>
+        <button class="projects-close" id="conversations-close" type="button" aria-label="Cerrar">×</button>
+      </div>
+      <button class="new-conversation-btn" id="new-conversation-btn" type="button">+ Nueva conversación</button>
+      <div class="conversation-list" id="conversation-list"></div>
+    </div>
+  </div>
 
   <div class="projects-panel" id="projects-panel" aria-hidden="true">
     <div class="projects-card" role="dialog" aria-modal="true" aria-labelledby="projects-title">
@@ -724,6 +805,7 @@
    * ------------------------------------------------------------------ */
 
   const SESSION_STORAGE_KEY = "miniValeriaSessionId";
+  const CONVERSATION_REGISTERED_KEY = "miniValeriaConversationRegistered";
   const PROJECT_STORAGE_KEY = "miniValeriaProjectId";
   const CONTEXT_STORAGE_KEY = "miniValeriaContextAttached";
   const INSTRUCTIONS_STORAGE_KEY = "miniValeriaInstructionsAttached";
@@ -902,11 +984,29 @@
   // normal del Worker sin sugerencia, o fallback ante error de red).
   const NO_MEMORY_SUGGESTION = { shouldSuggest: false, content: null };
 
+  function ensureConversationRegistered(firstMessage) {
+    if (sessionStorage.getItem(CONVERSATION_REGISTERED_KEY) === "true") return Promise.resolve();
+    const userId = getOrCreateUserId();
+    const sessionId = getOrCreateSessionId();
+    const name = firstMessage.trim().replace(/\\s+/g, " ").slice(0, 60) || "Nueva conversación";
+    return fetch(WORKER_BASE_URL + "/conversations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: userId, conversationId: sessionId, projectId: activeProjectId || undefined, name: name })
+    }).then(function (response) {
+      if (!response.ok) throw new Error("No se pudo registrar la conversación: " + response.status);
+      return response.json();
+    }).then(function () {
+      sessionStorage.setItem(CONVERSATION_REGISTERED_KEY, "true");
+    });
+  }
+
   function getMiniValeriaReply(userMessage) {
     const userId = getOrCreateUserId();
     const sessionId = getOrCreateSessionId();
 
-    return fetch(WORKER_BASE_URL + "/", {
+    return ensureConversationRegistered(userMessage).then(function () {
+      return fetch(WORKER_BASE_URL + "/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -935,7 +1035,164 @@
             : NO_MEMORY_SUGGESTION;
         return { reply: data.reply, memorySuggestion: memorySuggestion };
       })
+      });
+  }
+
+  /* ------------------------------------------------------------------
+   * CONVERSACIONES (V1.8-A)
+   * ------------------------------------------------------------------ */
+
+  const conversationsPanelEl = document.getElementById("conversations-panel");
+  const conversationListEl = document.getElementById("conversation-list");
+
+  function openConversationsPanel() {
+    conversationsPanelEl.classList.add("open");
+    conversationsPanelEl.setAttribute("aria-hidden", "false");
+    loadConversations();
+  }
+
+  function closeConversationsPanel() {
+    conversationsPanelEl.classList.remove("open");
+    conversationsPanelEl.setAttribute("aria-hidden", "true");
+  }
+
+  function loadConversations() {
+    conversationListEl.innerHTML = '<div class="project-empty">Cargando conversaciones...</div>';
+    fetch(WORKER_BASE_URL + "/conversations?userId=" + encodeURIComponent(getOrCreateUserId()))
+      .then(function (response) {
+        if (!response.ok) throw new Error("Respuesta HTTP no válida: " + response.status);
+        return response.json();
+      })
+      .then(function (data) {
+        renderConversations(Array.isArray(data.conversations) ? data.conversations : []);
+      })
       .catch(function (error) {
+        console.error("Error al cargar conversaciones:", error);
+        conversationListEl.innerHTML = '<div class="project-empty">No se pudieron cargar las conversaciones.</div>';
+      });
+  }
+
+  function renderConversations(conversations) {
+    conversationListEl.innerHTML = "";
+    if (!conversations.length) {
+      const empty = document.createElement("div");
+      empty.className = "project-empty";
+      empty.textContent = "Todavía no tienes conversaciones guardadas.";
+      conversationListEl.appendChild(empty);
+      return;
+    }
+
+    const currentSessionId = getOrCreateSessionId();
+    conversations.forEach(function (conversation) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "conversation-item" + (conversation.sessionId === currentSessionId ? " active" : "");
+
+      const name = document.createElement("div");
+      name.className = "conversation-item-name";
+      name.textContent = conversation.name || "Nueva conversación";
+
+      const meta = document.createElement("div");
+      meta.className = "conversation-item-meta";
+      meta.textContent = new Date(conversation.updatedAt || conversation.createdAt).toLocaleString();
+
+      item.appendChild(name);
+      item.appendChild(meta);
+      item.addEventListener("click", function () {
+        loadConversation(conversation.id);
+      });
+      conversationListEl.appendChild(item);
+    });
+  }
+
+  function loadConversation(conversationId) {
+    const url = WORKER_BASE_URL + "/conversations/" + encodeURIComponent(conversationId) + "?userId=" + encodeURIComponent(getOrCreateUserId());
+    fetch(url)
+      .then(function (response) {
+        if (!response.ok) throw new Error("Respuesta HTTP no válida: " + response.status);
+        return response.json();
+      })
+      .then(function (data) {
+        const conversation = data.conversation;
+        sessionStorage.setItem(SESSION_STORAGE_KEY, conversation.sessionId);
+        sessionStorage.setItem(CONVERSATION_REGISTERED_KEY, "true");
+        sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
+        sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
+        activeProjectId = conversation.projectId || null;
+        return fetch(WORKER_BASE_URL + "/projects?userId=" + encodeURIComponent(getOrCreateUserId()))
+          .then(function (response) { return response.ok ? response.json() : { projects: [] }; })
+          .then(function (projectsData) {
+            const project = (projectsData.projects || []).find(function (p) { return p.id === activeProjectId; });
+            activeProjectName = project ? project.name : null;
+            if (activeProjectId) localStorage.setItem(PROJECT_STORAGE_KEY, activeProjectId);
+            else localStorage.removeItem(PROJECT_STORAGE_KEY);
+            activeProjectEl.textContent = activeProjectId ? "Proyecto: " + activeProjectName : "";
+            activeProjectEl.classList.toggle("visible", !!activeProjectId);
+            exitProjectEl.classList.toggle("visible", !!activeProjectId);
+
+            chatEl.innerHTML = "";
+            (data.history || []).forEach(function (turn) {
+              appendMessage(turn.role === "user" ? "user" : "bot", turn.text);
+            });
+
+            if (data.context) sessionStorage.setItem(CONTEXT_STORAGE_KEY, "true");
+            if (data.instructions) sessionStorage.setItem(INSTRUCTIONS_STORAGE_KEY, "true");
+            updateContextButton();
+            updateInstructionsButton();
+            inputEl.value = "";
+            autoResize();
+            inputEl.focus();
+            closeConversationsPanel();
+          });
+      })
+      .catch(function (error) {
+        console.error("Error al abrir conversación:", error);
+        alert("No se pudo abrir la conversación. Intenta de nuevo.");
+      });
+  }
+
+  function createConversationOnServer(projectId, projectName) {
+    return fetch(WORKER_BASE_URL + "/conversations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: getOrCreateUserId(), projectId: projectId || undefined, name: "Nueva conversación" })
+    }).then(function (response) {
+      if (!response.ok) throw new Error("No se pudo crear la conversación: " + response.status);
+      return response.json();
+    }).then(function (data) {
+      const conversation = data.conversation;
+      sessionStorage.setItem(SESSION_STORAGE_KEY, conversation.sessionId);
+      sessionStorage.setItem(CONVERSATION_REGISTERED_KEY, "true");
+      sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
+      sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
+      activeProjectId = projectId || null;
+      activeProjectName = projectName || null;
+      if (activeProjectId) localStorage.setItem(PROJECT_STORAGE_KEY, activeProjectId);
+      else localStorage.removeItem(PROJECT_STORAGE_KEY);
+      activeProjectEl.textContent = activeProjectId ? "Proyecto: " + activeProjectName : "";
+      activeProjectEl.classList.toggle("visible", !!activeProjectId);
+      exitProjectEl.classList.toggle("visible", !!activeProjectId);
+      chatEl.innerHTML = "";
+      inputEl.value = "";
+      autoResize();
+      inputEl.focus();
+      closeConversationsPanel();
+    });
+  }
+
+  document.getElementById("conversations-btn").addEventListener("click", openConversationsPanel);
+  document.getElementById("conversations-close").addEventListener("click", closeConversationsPanel);
+  document.getElementById("new-conversation-btn").addEventListener("click", function () {
+    createConversationOnServer(null, null).catch(function (error) {
+      console.error(error);
+      alert("No se pudo crear una conversación nueva.");
+    });
+  });
+  conversationsPanelEl.addEventListener("click", function (event) {
+    if (event.target === conversationsPanelEl) closeConversationsPanel();
+  });
+
+        .catch(function (error) {
         console.error("Error al contactar a Mini Valeria:", error);
         return {
           reply: "Se me dificultó conectarme justo ahora. ¿Puedes intentar de nuevo en un momento?",
@@ -1057,6 +1314,11 @@
   const projectDescriptionEl = document.getElementById("project-description");
 
   function startNewConversation(projectId, projectName) {
+    createConversationOnServer(projectId, projectName).catch(function (error) {
+      console.error("Error al iniciar conversación:", error);
+      alert("No se pudo iniciar la conversación.");
+    });
+    return;
     sessionStorage.setItem(SESSION_STORAGE_KEY, generateUUID());
     sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
     sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
