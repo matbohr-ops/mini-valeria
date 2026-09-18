@@ -394,8 +394,15 @@
     gap: 9px;
   }
 
+  .conversation-item-row {
+    display: flex;
+    align-items: stretch;
+    gap: 8px;
+  }
+
   .conversation-item {
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     text-align: left;
     border: 1px solid var(--border-soft);
     border-radius: 12px;
@@ -406,8 +413,26 @@
 
   .conversation-item:hover { background: var(--bg-app); }
   .conversation-item.active { border-color: var(--accent); background: var(--bg-app); }
-  .conversation-item-name { font-weight: 600; font-size: 14px; }
+  .conversation-item-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
   .conversation-item-meta { margin-top: 3px; color: var(--ink-soft); font-size: 11.5px; }
+
+  .conversation-delete-btn {
+    flex-shrink: 0;
+    width: 42px;
+    border: 1px solid var(--border-soft);
+    border-radius: 12px;
+    background: var(--bg-panel);
+    color: var(--ink-soft);
+    font-family: inherit;
+    font-size: 16px;
+    cursor: pointer;
+  }
+
+  .conversation-delete-btn:hover {
+    background: #F9EEF1;
+    color: #8A4050;
+    border-color: #D9B5BF;
+  }
 
   .new-conversation-btn {
     width: 100%;
@@ -1169,6 +1194,9 @@
 
     const currentSessionId = getOrCreateSessionId();
     conversations.forEach(function (conversation) {
+      const row = document.createElement("div");
+      row.className = "conversation-item-row";
+
       const item = document.createElement("button");
       item.type = "button";
       item.className = "conversation-item" + (conversation.sessionId === currentSessionId ? " active" : "");
@@ -1186,8 +1214,53 @@
       item.addEventListener("click", function () {
         loadConversation(conversation.id);
       });
-      conversationListEl.appendChild(item);
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "conversation-delete-btn";
+      deleteBtn.textContent = "🗑️";
+      deleteBtn.setAttribute("aria-label", "Eliminar conversación");
+      deleteBtn.title = "Eliminar conversación";
+      deleteBtn.addEventListener("click", function (event) {
+        event.stopPropagation();
+        deleteConversation(conversation);
+      });
+
+      row.appendChild(item);
+      row.appendChild(deleteBtn);
+      conversationListEl.appendChild(row);
     });
+  }
+
+  function deleteConversation(conversation) {
+    const name = conversation.name || "esta conversación";
+    if (!confirm('¿Eliminar "' + name + '"? Esta acción borrará la conversación, su historial, contexto e instrucciones temporales. El proyecto y las memorias no se borrarán.')) {
+      return;
+    }
+
+    const url = WORKER_BASE_URL + "/conversations/" + encodeURIComponent(conversation.id) +
+      "?userId=" + encodeURIComponent(getOrCreateUserId());
+
+    fetch(url, { method: "DELETE" })
+      .then(function (response) {
+        if (!response.ok) {
+          throw new Error("Respuesta HTTP no válida: " + response.status);
+        }
+        return response.json();
+      })
+      .then(function () {
+        const currentSessionId = getOrCreateSessionId();
+
+        if (conversation.sessionId === currentSessionId) {
+          createConversationOnServer(null, null);
+        } else {
+          loadConversations();
+        }
+      })
+      .catch(function (error) {
+        console.error("Error al eliminar conversación:", error);
+        alert("No se pudo eliminar la conversación. Intenta de nuevo.");
+      });
   }
 
   function loadConversation(conversationId) {
