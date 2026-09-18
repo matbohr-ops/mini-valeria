@@ -421,6 +421,74 @@
     margin-bottom: 14px;
   }
 
+  .conversation-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    padding: 6px 16px;
+    background: #FAF8FC;
+    border-bottom: 1px solid var(--border-soft);
+    color: var(--ink-soft);
+    font-size: 11.5px;
+    flex-shrink: 0;
+  }
+
+  .conversation-status-label {
+    font-weight: 600;
+    color: var(--plum);
+    flex-shrink: 0;
+  }
+
+  .conversation-status-items {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .conversation-status-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid var(--border-soft);
+    border-radius: 999px;
+    padding: 3px 8px;
+    background: var(--bg-panel);
+    white-space: nowrap;
+  }
+
+  .conversation-status-chip::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ink-soft);
+  }
+
+  .conversation-status-chip.active::before {
+    background: var(--accent);
+  }
+
+  .conversation-status-chip.active {
+    color: var(--plum);
+    border-color: var(--lilac);
+  }
+
+  .conversation-status-empty {
+    color: var(--ink-soft);
+  }
+
+  @media (max-width: 420px) {
+    .conversation-status {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 3px;
+      padding-top: 6px;
+      padding-bottom: 6px;
+    }
+  }
+
   .status-dot {
     width: 8px;
     height: 8px;
@@ -676,6 +744,11 @@
       <button class="projects-btn" id="projects-btn" type="button">Proyectos</button>
     </div>
   </header>
+
+  <div class="conversation-status" id="conversation-status" aria-label="Estado de la conversación">
+    <span class="conversation-status-label">Estado</span>
+    <div class="conversation-status-items" id="conversation-status-items"></div>
+  </div>
 
   <div class="conversations-panel" id="conversations-panel" aria-hidden="true">
     <div class="conversations-card" role="dialog" aria-modal="true" aria-labelledby="conversations-title">
@@ -1128,6 +1201,7 @@
         sessionStorage.setItem(CONVERSATION_REGISTERED_KEY, "true");
         sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
         sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
+        updateConversationStatus();
         activeProjectId = conversation.projectId || null;
         return fetch(WORKER_BASE_URL + "/projects?userId=" + encodeURIComponent(getOrCreateUserId()))
           .then(function (response) { return response.ok ? response.json() : { projects: [] }; })
@@ -1149,6 +1223,7 @@
             if (data.instructions) sessionStorage.setItem(INSTRUCTIONS_STORAGE_KEY, "true");
             updateContextButton();
             updateInstructionsButton();
+            updateConversationStatus();
             inputEl.value = "";
             autoResize();
             inputEl.focus();
@@ -1174,6 +1249,7 @@
     activeProjectEl.textContent = activeProjectId ? "Proyecto: " + activeProjectName : "";
     activeProjectEl.classList.toggle("visible", !!activeProjectId);
     exitProjectEl.classList.toggle("visible", !!activeProjectId);
+    updateConversationStatus();
     chatEl.innerHTML = "";
     inputEl.value = "";
     autoResize();
@@ -1504,12 +1580,47 @@
         contextNameEl.value = "";
         contextContentEl.value = "";
         updateContextButton();
+        updateConversationStatus();
         closeContextPanel();
       })
       .catch(function (error) {
         console.error("Error al quitar el contexto:", error);
         contextStatusEl.textContent = "No se pudo quitar el contexto. Intenta de nuevo.";
       });
+  }
+
+  function updateConversationStatus() {
+    const statusItemsEl = document.getElementById("conversation-status-items");
+    if (!statusItemsEl) return;
+
+    statusItemsEl.innerHTML = "";
+    const hasContext = sessionStorage.getItem(CONTEXT_STORAGE_KEY) === "true";
+    const hasInstructions = sessionStorage.getItem(INSTRUCTIONS_STORAGE_KEY) === "true";
+    const items = [];
+
+    if (activeProjectId) {
+      items.push({
+        label: activeProjectName ? "Proyecto: " + activeProjectName : "Proyecto activo",
+        active: true
+      });
+    }
+    if (hasContext) items.push({ label: "Contexto activo", active: true });
+    if (hasInstructions) items.push({ label: "Instrucciones activas", active: true });
+
+    if (!items.length) {
+      const empty = document.createElement("span");
+      empty.className = "conversation-status-empty";
+      empty.textContent = "Sin contexto temporal ni instrucciones";
+      statusItemsEl.appendChild(empty);
+      return;
+    }
+
+    items.forEach(function (item) {
+      const chip = document.createElement("span");
+      chip.className = "conversation-status-chip" + (item.active ? " active" : "");
+      chip.textContent = item.label;
+      statusItemsEl.appendChild(chip);
+    });
   }
 
   function updateContextButton() {
@@ -1519,7 +1630,7 @@
   function attachConversationContext() {
     const name = contextNameEl.value.trim(); const content = contextContentEl.value; if (!content.trim()) return;
     contextSaveBtn.disabled = true; contextSaveBtn.textContent = "Adjuntando...";
-    saveConversationContext(name, content).then(function () { sessionStorage.setItem(CONTEXT_STORAGE_KEY, "true"); contextNameEl.value = ""; contextContentEl.value = ""; closeContextPanel(); updateContextButton(); }).catch(function (error) { console.error("Error al adjuntar contexto:", error); contextStatusEl.textContent = "No se pudo adjuntar la información. Intenta de nuevo."; }).finally(function () { contextSaveBtn.disabled = false; contextSaveBtn.textContent = "Adjuntar"; });
+    saveConversationContext(name, content).then(function () { sessionStorage.setItem(CONTEXT_STORAGE_KEY, "true"); contextNameEl.value = ""; contextContentEl.value = ""; closeContextPanel(); updateContextButton(); updateConversationStatus(); }).catch(function (error) { console.error("Error al adjuntar contexto:", error); contextStatusEl.textContent = "No se pudo adjuntar la información. Intenta de nuevo."; }).finally(function () { contextSaveBtn.disabled = false; contextSaveBtn.textContent = "Adjuntar"; });
   }
 
   /* ------------------------------------------------------------------
@@ -1578,6 +1689,7 @@
         sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
         instructionsContentEl.value = "";
         updateInstructionsButton();
+        updateConversationStatus();
         closeInstructionsPanel();
       })
       .catch(function (error) {
@@ -1605,6 +1717,7 @@
         sessionStorage.setItem(INSTRUCTIONS_STORAGE_KEY, "true");
         closeInstructionsPanel();
         updateInstructionsButton();
+        updateConversationStatus();
       })
       .catch(function (error) {
         console.error("Error al guardar instrucciones:", error);
@@ -1729,6 +1842,7 @@
   });
   contextPanelEl.addEventListener("click", function (event) { if (event.target === contextPanelEl) closeContextPanel(); });
   updateContextButton();
+  updateConversationStatus();
 
   document.getElementById("instructions-btn").addEventListener("click", function () {
     if (sessionStorage.getItem(INSTRUCTIONS_STORAGE_KEY) === "true") {
@@ -1737,6 +1851,7 @@
           sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
           instructionsContentEl.value = "";
           updateInstructionsButton();
+          updateConversationStatus();
           openInstructionsPanel();
         })
         .catch(function (error) {
