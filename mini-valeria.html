@@ -988,11 +988,16 @@
     if (sessionStorage.getItem(CONVERSATION_REGISTERED_KEY) === "true") return Promise.resolve();
     const userId = getOrCreateUserId();
     const sessionId = getOrCreateSessionId();
-    const name = firstMessage.trim().replace(/\\s+/g, " ").slice(0, 60) || "Nueva conversación";
+    const name = firstMessage.trim().replace(/\s+/g, " ").slice(0, 60) || "Nueva conversación";
     return fetch(WORKER_BASE_URL + "/conversations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: userId, conversationId: sessionId, projectId: activeProjectId || undefined, name: name })
+      body: JSON.stringify({
+        userId: userId,
+        conversationId: sessionId,
+        projectId: activeProjectId || undefined,
+        name: name
+      })
     }).then(function (response) {
       if (!response.ok) throw new Error("No se pudo registrar la conversación: " + response.status);
       return response.json();
@@ -1005,17 +1010,19 @@
     const userId = getOrCreateUserId();
     const sessionId = getOrCreateSessionId();
 
-    return ensureConversationRegistered(userMessage).then(function () {
-      return fetch(WORKER_BASE_URL + "/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: userId,
-        sessionId: sessionId,
-        message: userMessage,
-        projectId: activeProjectId || undefined
+    return ensureConversationRegistered(userMessage)
+      .then(function () {
+        return fetch(WORKER_BASE_URL + "/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: userId,
+            sessionId: sessionId,
+            message: userMessage,
+            projectId: activeProjectId || undefined
+          })
+        });
       })
-    })
       .then(function (response) {
         if (!response.ok) {
           throw new Error("Respuesta HTTP no válida: " + response.status);
@@ -1026,15 +1033,18 @@
         if (!data || typeof data.reply !== "string") {
           throw new Error("Formato de respuesta inesperado del Worker.");
         }
-        // memorySuggestion es opcional/aditivo: si el Worker no la manda
-        // (o llega en un formato inesperado), simplemente no se sugiere
-        // nada, sin romper el flujo normal de la respuesta.
         const memorySuggestion =
           data.memorySuggestion && typeof data.memorySuggestion === "object"
             ? data.memorySuggestion
             : NO_MEMORY_SUGGESTION;
         return { reply: data.reply, memorySuggestion: memorySuggestion };
       })
+      .catch(function (error) {
+        console.error("Error al contactar a Mini Valeria:", error);
+        return {
+          reply: "Se me dificultó conectarme justo ahora. ¿Puedes intentar de nuevo en un momento?",
+          memorySuggestion: NO_MEMORY_SUGGESTION
+        };
       });
   }
 
