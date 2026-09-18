@@ -490,6 +490,16 @@ export class UserMemory extends DurableObject {
     return conversation;
   }
 
+  async deleteConversation(conversationId) {
+    const conversations = (await this.ctx.storage.get("conversations")) || [];
+    const index = conversations.findIndex((item) => item.id === conversationId);
+    if (index === -1) return null;
+
+    const [deleted] = conversations.splice(index, 1);
+    await this.ctx.storage.put("conversations", conversations);
+    return deleted;
+  }
+
   async saveDocument(projectId, name, content) {
     const documents = (await this.ctx.storage.get("documents")) || [];
 
@@ -760,6 +770,44 @@ export default {
     }
 
     if (request.method === "DELETE") {
+      if (url.pathname.startsWith("/conversations/")) {
+        try {
+          const conversationId = url.pathname.split("/")[2];
+          const userId = url.searchParams.get("userId");
+
+          if (!conversationId || !userId) {
+            return jsonResponse(
+              { error: "Se requieren conversationId y userId válidos." },
+              400
+            );
+          }
+
+          const userDoId = env.USER_MEMORY.idFromName(userId);
+          const userStub = env.USER_MEMORY.get(userDoId);
+          const conversation = await userStub.getConversation(conversationId);
+
+          if (!conversation) {
+            return jsonResponse(
+              { error: "La conversación solicitada no existe." },
+              404
+            );
+          }
+
+          const sessionDoId = env.CONVERSATION_SESSION.idFromName(conversation.sessionId);
+          const sessionStub = env.CONVERSATION_SESSION.get(sessionDoId);
+
+          await sessionStub.deleteAll();
+          await userStub.deleteConversation(conversationId);
+
+          return jsonResponse({ success: true, conversation: conversation });
+        } catch (error) {
+          return jsonResponse(
+            { error: "Error eliminando la conversación.", details: error.message },
+            500
+          );
+        }
+      }
+
       if (url.pathname.startsWith("/documents/")) {
         try {
           const documentId = url.pathname.split("/")[2];
