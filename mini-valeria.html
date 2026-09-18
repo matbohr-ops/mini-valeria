@@ -1172,7 +1172,7 @@
     }).then(function (data) {
       const conversation = data.conversation;
       sessionStorage.setItem(SESSION_STORAGE_KEY, conversation.sessionId);
-      sessionStorage.setItem(CONVERSATION_REGISTERED_KEY, "true");
+      sessionStorage.removeItem(CONVERSATION_REGISTERED_KEY);
       sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
       sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
       activeProjectId = projectId || null;
