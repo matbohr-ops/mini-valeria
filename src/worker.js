@@ -211,7 +211,7 @@ export class ConversationSession extends DurableObject {
     return (await this.ctx.storage.get("projectId")) || null;
   }
 
-  async processMessage(message, memories, projectContext = null) {
+  async processMessage(message, memories, projectContext = null, conversationContext = null) {
     const history = (await this.ctx.storage.get("history")) || [];
 
     const userTurn = {
@@ -227,7 +227,7 @@ export class ConversationSession extends DurableObject {
       parts: [{ text: turn.text }]
     }));
 
-    const response = await fetch(GEMINI_URL, {
+    const contextText = conversationContext ? `\nINFORMACIÓN ADJUNTA A ESTA CONVERSACIÓN:\n\nNombre: ${conversationContext.name || "Información adjunta"}\n\n${conversationContext.content}\n` : "";\n\n    const response = await fetch(GEMINI_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -235,7 +235,7 @@ export class ConversationSession extends DurableObject {
       },
       body: JSON.stringify({
         systemInstruction: {
-          parts: [{ text: buildSystemPromptWithMemory(memories, projectContext) }]
+          parts: [{ text: buildSystemPromptWithMemory(memories, projectContext) + contextText }]
         },
         contents: contents,
         generationConfig: {
@@ -585,7 +585,7 @@ export default {
       }
     }
 
-    if (request.method === "POST") {
+    if (request.method === "DELETE") {\n      if (url.pathname === "/context") {\n        try {\n          const userId = url.searchParams.get("userId"); const sessionId = url.searchParams.get("sessionId");\n          if (!userId || !sessionId) return jsonResponse({ error: "Se requieren userId y sessionId válidos." }, 400);\n          const sessionDoId = env.CONVERSATION_SESSION.idFromName(sessionId); const sessionStub = env.CONVERSATION_SESSION.get(sessionDoId);\n          await sessionStub.deleteContext(); return jsonResponse({ success: true });\n        } catch (error) { return jsonResponse({ error: "Error eliminando el contexto.", details: error.message }, 500); }\n      }\n    }\n\n    if (request.method === "POST") {
       // POST /memory { userId, text } (antes era { sessionId, text })
       if (url.pathname === "/memory") {
         try {
@@ -774,7 +774,7 @@ export default {
         }
       }
 
-      // POST normal → chat. Espera { userId, sessionId, message, projectId? }.
+      // POST /context { userId, sessionId, name?, content } — contexto temporal.\n      if (url.pathname === "/context") {\n        try {\n          const body = await request.json(); const userId = body.userId; const sessionId = body.sessionId; const name = body.name || "Información adjunta"; const content = body.content;\n          if (!userId || typeof userId !== "string") return jsonResponse({ error: "No se recibió un userId válido." }, 400);\n          if (!sessionId || typeof sessionId !== "string") return jsonResponse({ error: "No se recibió un sessionId válido." }, 400);\n          if (!content || typeof content !== "string" || !content.trim()) return jsonResponse({ error: "No se recibió contenido válido." }, 400);\n          const sessionDoId = env.CONVERSATION_SESSION.idFromName(sessionId); const sessionStub = env.CONVERSATION_SESSION.get(sessionDoId);\n          const context = await sessionStub.saveContext(typeof name === "string" ? name.trim() : "Información adjunta", content);\n          return jsonResponse({ success: true, context: context });\n        } catch (error) { return jsonResponse({ error: "Error guardando el contexto.", details: error.message }, 500); }\n      }\n\n      // POST normal → chat. Espera { userId, sessionId, message, projectId? }.
       try {
         const body = await request.json();
         const userId = body.userId;
@@ -837,7 +837,7 @@ export default {
           }
         }
 
-        const result = await sessionStub.processMessage(message, memories, projectContext);
+        const conversationContext = await sessionStub.getContext();\n        const result = await sessionStub.processMessage(message, memories, projectContext, conversationContext);
 
         return jsonResponse({
           reply: result.reply,
