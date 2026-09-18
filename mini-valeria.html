@@ -298,6 +298,7 @@
   .exit-project-btn.visible {
     display: block;
   }
+
   .documents-btn { width: 100%; border: 1px solid var(--border-soft); border-radius: 10px; padding: 8px 10px; background: transparent; color: var(--plum); font-family: inherit; cursor: pointer; margin-bottom: 12px; }
   .documents-btn:hover { background: var(--bg-app); }
   .documents-panel { position: fixed; inset: 0; background: rgba(36, 27, 47, 0.35); display: none; align-items: center; justify-content: center; padding: 18px; z-index: 11; }
@@ -431,24 +432,6 @@
     background: #F9EEF1;
     color: #8A4050;
     border-color: #D9B5BF;
-  }
-
-  .conversation-edit-btn {
-    flex-shrink: 0;
-    width: 42px;
-    border: 1px solid var(--border-soft);
-    border-radius: 12px;
-    background: var(--bg-panel);
-    color: var(--ink-soft);
-    font-family: inherit;
-    font-size: 15px;
-    cursor: pointer;
-  }
-
-  .conversation-edit-btn:hover {
-    background: var(--bg-app);
-    color: var(--plum);
-    border-color: var(--lilac);
   }
 
   .new-conversation-btn {
@@ -614,7 +597,8 @@
   .typing-indicator .dot:nth-child(3) { animation-delay: 0.3s; }
 
   @keyframes bounce {
-    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }    30% { transform: translateY(-4px); opacity: 1; }
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-4px); opacity: 1; }
   }
 
   footer.composer {
@@ -913,7 +897,8 @@
    * Identificador de la conversación actual. Se genera una sola vez por
    * pestaña/sesión de navegador y se guarda en sessionStorage:
    * - Sobrevive a una recarga (F5) de la página.
-   * - Se pierde al cerrar la pestaña (una nueva apertura empieza una   *   sesión nueva).
+   * - Se pierde al cerrar la pestaña (una nueva apertura empieza una
+   *   sesión nueva).
    * No implica login ni identificación de usuario; es solo la forma en
    * que el Worker sabe a qué Durable Object (conversación) pertenece
    * cada mensaje.
@@ -1212,7 +1197,8 @@
       const row = document.createElement("div");
       row.className = "conversation-item-row";
 
-      const item = document.createElement("button");      item.type = "button";
+      const item = document.createElement("button");
+      item.type = "button";
       item.className = "conversation-item" + (conversation.sessionId === currentSessionId ? " active" : "");
 
       const name = document.createElement("div");
@@ -1229,17 +1215,6 @@
         loadConversation(conversation.id);
       });
 
-      const editBtn = document.createElement("button");
-      editBtn.type = "button";
-      editBtn.className = "conversation-edit-btn";
-      editBtn.textContent = "✏️";
-      editBtn.setAttribute("aria-label", "Renombrar conversación");
-      editBtn.title = "Renombrar conversación";
-      editBtn.addEventListener("click", function (event) {
-        event.stopPropagation();
-        renameConversation(conversation);
-      });
-
       const deleteBtn = document.createElement("button");
       deleteBtn.type = "button";
       deleteBtn.className = "conversation-delete-btn";
@@ -1252,55 +1227,9 @@
       });
 
       row.appendChild(item);
-      row.appendChild(editBtn);
       row.appendChild(deleteBtn);
       conversationListEl.appendChild(row);
     });
-  }
-
-  function renameConversation(conversation) {
-    const currentName = conversation.name || "Nueva conversación";
-    const newName = window.prompt("Nuevo nombre para la conversación:", currentName);
-
-    if (newName === null) return;
-
-    const name = newName.trim();
-    if (!name) {
-      alert("El nombre no puede estar vacío.");
-      return;
-    }
-
-    if (name.length > 80) {
-      alert("El nombre no puede superar los 80 caracteres.");
-      return;
-    }
-
-    const url = WORKER_BASE_URL + "/conversations/" + encodeURIComponent(conversation.id);
-
-    fetch(url, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: getOrCreateUserId(),
-        name: name
-      })
-    })
-      .then(function (response) {
-        if (!response.ok) {
-          throw new Error("Respuesta HTTP no válida: " + response.status);
-        }
-        return response.json();
-      })
-      .then(function (data) {
-        if (!data || !data.conversation) {
-          throw new Error("Conversación renombrada no recibida.");
-        }
-        loadConversations();
-      })
-      .catch(function (error) {
-        console.error("Error al renombrar conversación:", error);
-        alert("No se pudo renombrar la conversación. Intenta de nuevo.");
-      });
   }
 
   function deleteConversation(conversation) {
@@ -1569,6 +1498,7 @@
 
   function renderProjects(projects) {
     projectListEl.innerHTML = "";
+
     if (!projects.length) {
       const empty = document.createElement("div");
       empty.className = "project-empty";
@@ -1868,3 +1798,228 @@
         console.error("Error al guardar instrucciones:", error);
         instructionsStatusEl.textContent =
           "No se pudieron guardar las instrucciones. Intenta de nuevo.";
+      })
+      .finally(function () {
+        instructionsSaveBtn.disabled = false;
+        instructionsSaveBtn.textContent = "Guardar instrucciones";
+      });
+  }
+
+  /* ------------------------------------------------------------------
+   * INTERFAZ DE CHAT (no debería necesitar cambios al conectar una IA)
+   * ------------------------------------------------------------------ */
+
+  const chatEl = document.getElementById("chat");
+  const formEl = document.getElementById("composer-form");
+  const inputEl = document.getElementById("message-input");
+
+  const documentsBtnEl = document.createElement("button");
+  documentsBtnEl.type = "button"; documentsBtnEl.className = "documents-btn"; documentsBtnEl.textContent = "Información del proyecto";
+  documentsBtnEl.addEventListener("click", openDocumentsPanel);
+  document.querySelector("footer.composer").prepend(documentsBtnEl);
+
+  const exitProjectEl = document.createElement("button");
+  exitProjectEl.type = "button";
+  exitProjectEl.className = "exit-project-btn";
+  exitProjectEl.textContent = "Salir del proyecto";
+  exitProjectEl.addEventListener("click", exitProject);
+  document.querySelector("footer.composer").prepend(exitProjectEl);
+
+  activeProjectEl.classList.toggle("visible", !!activeProjectId);
+
+  function appendMessage(sender, text) {
+    const row = document.createElement("div");
+    row.className = "msg-row " + sender;
+
+    const label = document.createElement("div");
+    label.className = "msg-label";
+    label.textContent = sender === "user" ? "Tú" : "Mini Valeria";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = text;
+
+    row.appendChild(label);
+    row.appendChild(bubble);
+    chatEl.appendChild(row);
+    scrollToBottom();
+    return row;
+  }
+
+  function appendTypingIndicator() {
+    const row = document.createElement("div");
+    row.className = "msg-row bot typing-indicator";
+    row.innerHTML =
+      '<div class="msg-label">Mini Valeria</div>' +
+      '<div class="bubble"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+    chatEl.appendChild(row);
+    scrollToBottom();
+    return row;
+  }
+
+  function scrollToBottom() {
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  function autoResize() {
+    inputEl.style.height = "auto";
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + "px";
+  }
+
+  async function handleSend() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+
+    appendMessage("user", text);
+    inputEl.value = "";
+    autoResize();
+    inputEl.focus();
+
+    const typingRow = appendTypingIndicator();
+    const result = await getMiniValeriaReply(text);
+    typingRow.remove();
+    appendMessage("bot", result.reply);
+
+    if (shouldShowMemorySuggestion(result.memorySuggestion)) {
+      appendMemorySuggestion(result.memorySuggestion.content);
+    }
+  }
+
+  // Nota de compatibilidad: se maneja el envío directamente por click
+  // y por la tecla Enter, en lugar de depender del evento "submit" del
+  // <form>. Algunos entornos de previsualización en sandbox (como la
+  // vista previa de artefactos) bloquean la navegación/submit de
+  // formularios, por lo que ese evento nunca llegaba a dispararse ahí.
+  formEl.addEventListener("submit", function (event) {
+    event.preventDefault();
+  });
+
+  document.getElementById("send-btn").addEventListener("click", handleSend);
+
+  document.getElementById("context-btn").addEventListener("click", function () {
+    if (sessionStorage.getItem(CONTEXT_STORAGE_KEY) === "true") {
+      if (confirm("Ya hay información adjunta a esta conversación. ¿Quieres reemplazarla?")) {
+        clearConversationContext().then(function () { sessionStorage.removeItem(CONTEXT_STORAGE_KEY); updateContextButton(); openContextPanel(); }).catch(function (error) { console.error(error); alert("No se pudo reemplazar la información."); });
+      }
+    } else { openContextPanel(); }
+  });
+  document.getElementById("context-close").addEventListener("click", closeContextPanel);
+  document.getElementById("context-cancel").addEventListener("click", closeContextPanel);
+  contextSaveBtn.addEventListener("click", attachConversationContext);
+  document.getElementById("context-clear").addEventListener("click", function () {
+    if (sessionStorage.getItem(CONTEXT_STORAGE_KEY) !== "true") {
+      closeContextPanel();
+      return;
+    }
+    if (confirm("¿Quitar la información adjunta de esta conversación?")) {
+      clearConversationContextFromUI();
+    }
+  });
+  contextPanelEl.addEventListener("click", function (event) { if (event.target === contextPanelEl) closeContextPanel(); });
+  updateContextButton();
+  updateConversationStatus();
+
+  document.getElementById("instructions-btn").addEventListener("click", function () {
+    if (sessionStorage.getItem(INSTRUCTIONS_STORAGE_KEY) === "true") {
+      clearConversationInstructions()
+        .then(function () {
+          sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
+          instructionsContentEl.value = "";
+          updateInstructionsButton();
+          updateConversationStatus();
+          openInstructionsPanel();
+        })
+        .catch(function (error) {
+          console.error(error);
+          alert("No se pudieron reemplazar las instrucciones.");
+        });
+    } else {
+      openInstructionsPanel();
+    }
+  });
+
+  document.getElementById("instructions-close").addEventListener("click", closeInstructionsPanel);
+  document.getElementById("instructions-cancel").addEventListener("click", closeInstructionsPanel);
+  instructionsSaveBtn.addEventListener("click", attachConversationInstructions);
+  document.getElementById("instructions-clear").addEventListener("click", function () {
+    if (sessionStorage.getItem(INSTRUCTIONS_STORAGE_KEY) !== "true") {
+      closeInstructionsPanel();
+      return;
+    }
+    if (confirm("¿Quitar las instrucciones de esta conversación?")) {
+      clearConversationInstructionsFromUI();
+    }
+  });
+  instructionsPanelEl.addEventListener("click", function (event) {
+    if (event.target === instructionsPanelEl) closeInstructionsPanel();
+  });
+  updateInstructionsButton();
+
+  document.getElementById("projects-btn").addEventListener("click", openProjectsPanel);
+  document.getElementById("projects-close").addEventListener("click", closeProjectsPanel);
+  document.getElementById("documents-close").addEventListener("click", closeDocumentsPanel);
+  document.getElementById("document-view-close").addEventListener("click", closeDocumentView);
+  document.getElementById("new-document-btn").addEventListener("click", function () { if (!activeProjectId) return; documentFormEl.classList.toggle("open"); if (documentFormEl.classList.contains("open")) documentNameEl.focus(); });
+  document.getElementById("document-cancel").addEventListener("click", function () { documentFormEl.classList.remove("open"); documentFormEl.reset(); });
+  documentFormEl.addEventListener("submit", function (event) { event.preventDefault(); const name = documentNameEl.value.trim(); const content = documentContentEl.value; if (!name || !content.trim()) return; const submitBtn = documentFormEl.querySelector("button[type=\"submit\"]"); submitBtn.disabled = true; submitBtn.textContent = "Guardando..."; saveDocument(name, content).then(function (data) { if (!data || !data.document) throw new Error("Documento no recibido."); documentFormEl.reset(); documentFormEl.classList.remove("open"); closeDocumentView(); loadDocuments(); }).catch(function (error) { console.error("Error al guardar documento:", error); alert("No se pudo guardar la información. Intenta de nuevo."); }).finally(function () { submitBtn.disabled = false; submitBtn.textContent = "Guardar"; }); });
+  documentsPanelEl.addEventListener("click", function (event) { if (event.target === documentsPanelEl) closeDocumentsPanel(); });
+  document.getElementById("new-project-btn").addEventListener("click", function () {
+    projectFormEl.classList.toggle("open");
+    if (projectFormEl.classList.contains("open")) projectNameEl.focus();
+  });
+  document.getElementById("project-cancel").addEventListener("click", function () {
+    projectFormEl.classList.remove("open");
+    projectFormEl.reset();
+  });
+
+  projectFormEl.addEventListener("submit", function (event) {
+    event.preventDefault();
+
+    const name = projectNameEl.value.trim();
+    const description = projectDescriptionEl.value.trim();
+    if (!name) return;
+
+    const submitBtn = projectFormEl.querySelector("button[type=\"submit\"]");
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Creando...";
+
+    createProject(name, description)
+      .then(function (data) {
+        if (!data || !data.project) throw new Error("Proyecto no recibido.");
+        projectFormEl.reset();
+        projectFormEl.classList.remove("open");
+        renderProjects([data.project].concat(
+          Array.from(projectListEl.querySelectorAll(".project-item")).map(function () {
+            return null;
+          }).filter(Boolean)
+        ));
+        loadProjects();
+      })
+      .catch(function (error) {
+        console.error("Error al crear proyecto:", error);
+        alert("No se pudo crear el proyecto. Intenta de nuevo.");
+      })
+      .finally(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Crear";
+      });
+  });
+
+  projectsPanelEl.addEventListener("click", function (event) {
+    if (event.target === projectsPanelEl) closeProjectsPanel();
+  });
+
+  inputEl.addEventListener("input", autoResize);
+
+  inputEl.addEventListener("keydown", function (event) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      handleSend();
+    }
+  });
+
+})();
+</script>
+
+</body>
+</html>
