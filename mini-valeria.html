@@ -1202,15 +1202,6 @@
     if (event.target === conversationsPanelEl) closeConversationsPanel();
   });
 
-        .catch(function (error) {
-        console.error("Error al contactar a Mini Valeria:", error);
-        return {
-          reply: "Se me dificultó conectarme justo ahora. ¿Puedes intentar de nuevo en un momento?",
-          memorySuggestion: NO_MEMORY_SUGGESTION
-        };
-      });
-  }
-
   /* ------------------------------------------------------------------
    * SUGERENCIA DE MEMORIA (V1.2-C)
    * ------------------------------------------------------------------
