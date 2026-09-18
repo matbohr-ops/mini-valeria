@@ -1162,32 +1162,24 @@
   }
 
   function createConversationOnServer(projectId, projectName) {
-    return fetch(WORKER_BASE_URL + "/conversations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: getOrCreateUserId(), projectId: projectId || undefined, name: "Nueva conversación" })
-    }).then(function (response) {
-      if (!response.ok) throw new Error("No se pudo crear la conversación: " + response.status);
-      return response.json();
-    }).then(function (data) {
-      const conversation = data.conversation;
-      sessionStorage.setItem(SESSION_STORAGE_KEY, conversation.sessionId);
-      sessionStorage.setItem(CONVERSATION_REGISTERED_KEY, "true");
-      sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
-      sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
-      activeProjectId = projectId || null;
-      activeProjectName = projectName || null;
-      if (activeProjectId) localStorage.setItem(PROJECT_STORAGE_KEY, activeProjectId);
-      else localStorage.removeItem(PROJECT_STORAGE_KEY);
-      activeProjectEl.textContent = activeProjectId ? "Proyecto: " + activeProjectName : "";
-      activeProjectEl.classList.toggle("visible", !!activeProjectId);
-      exitProjectEl.classList.toggle("visible", !!activeProjectId);
-      chatEl.innerHTML = "";
-      inputEl.value = "";
-      autoResize();
-      inputEl.focus();
-      closeConversationsPanel();
-    });
+    const sessionId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-" + Math.random().toString(16).slice(2);
+    sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+    sessionStorage.removeItem(CONVERSATION_REGISTERED_KEY);
+    sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
+    sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
+    activeProjectId = projectId || null;
+    activeProjectName = projectName || null;
+    if (activeProjectId) localStorage.setItem(PROJECT_STORAGE_KEY, activeProjectId);
+    else localStorage.removeItem(PROJECT_STORAGE_KEY);
+    activeProjectEl.textContent = activeProjectId ? "Proyecto: " + activeProjectName : "";
+    activeProjectEl.classList.toggle("visible", !!activeProjectId);
+    exitProjectEl.classList.toggle("visible", !!activeProjectId);
+    chatEl.innerHTML = "";
+    inputEl.value = "";
+    autoResize();
+    inputEl.focus();
+    closeConversationsPanel();
+    return Promise.resolve();
   }
 
   document.getElementById("conversations-btn").addEventListener("click", openConversationsPanel);
