@@ -83,7 +83,7 @@ const GEMINI_URL =
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type"
 };
 
@@ -297,8 +297,7 @@ export class ConversationSession extends DurableObject {
     );
 
     while (recentTurns.length > 1 && recentHistoryLength > MAX_RECENT_HISTORY_LENGTH) {
-      const removedTurn = recentTurns.shift();
-      recentHistoryLength -= removedTurn.text.length;
+      const removedTurn = recentTurns.shift();      recentHistoryLength -= removedTurn.text.length;
     }
 
     const contents = recentTurns.map((turn) => ({
@@ -509,6 +508,17 @@ export class UserMemory extends DurableObject {
     return conversation;
   }
 
+  async renameConversation(conversationId, name) {
+    const conversations = (await this.ctx.storage.get("conversations")) || [];
+    const conversation = conversations.find((item) => item.id === conversationId);
+    if (!conversation) return null;
+
+    conversation.name = name;
+    conversation.updatedAt = Date.now();
+    await this.ctx.storage.put("conversations", conversations);
+    return conversation;
+  }
+
   async deleteConversation(conversationId) {
     const conversations = (await this.ctx.storage.get("conversations")) || [];
     const index = conversations.findIndex((item) => item.id === conversationId);
@@ -597,8 +607,7 @@ export default {
           const stub = env.USER_MEMORY.get(id);
           const memories = await stub.getMemories();
 
-          return jsonResponse({ success: true, memories: memories });
-        } catch (error) {
+          return jsonResponse({ success: true, memories: memories });        } catch (error) {
           return jsonResponse(
             { error: "Error leyendo las memorias.", details: error.message },
             500
@@ -869,6 +878,57 @@ export default {
       }
     }
 
+    if (request.method === "PATCH") {
+      if (url.pathname.startsWith("/conversations/")) {
+        try {
+          const conversationId = url.pathname.split("/")[2];
+          const body = await request.json();
+          const userId = body.userId;
+          const name = typeof body.name === "string" ? body.name.trim() : "";
+
+          if (!conversationId || !userId) {
+            return jsonResponse(
+              { error: "Se requieren conversationId y userId válidos." },
+              400
+            );
+          }
+
+          if (!name) {
+            return jsonResponse(
+              { error: "El nombre de la conversación no puede estar vacío." },
+              400
+            );
+          }
+
+          if (name.length > 80) {
+            return jsonResponse(
+              { error: "El nombre de la conversación no puede superar los 80 caracteres." },
+              400
+            );
+          }
+
+          const userDoId = env.USER_MEMORY.idFromName(userId);
+          const userStub = env.USER_MEMORY.get(userDoId);
+          const conversation = await userStub.getConversation(conversationId);
+
+          if (!conversation) {
+            return jsonResponse(
+              { error: "La conversación solicitada no existe." },
+              404
+            );
+          }
+
+          const renamed = await userStub.renameConversation(conversationId, name);
+          return jsonResponse({ success: true, conversation: renamed });
+        } catch (error) {
+          return jsonResponse(
+            { error: "Error renombrando la conversación.", details: error.message },
+            500
+          );
+        }
+      }
+    }
+
     if (request.method === "POST") {
       // POST /memory { userId, text } (antes era { sessionId, text })
       if (url.pathname === "/memory") {
@@ -897,8 +957,7 @@ export default {
           return jsonResponse({ success: true, memory: memory });
         } catch (error) {
           return jsonResponse(
-            { error: "Error guardando la memoria.", details: error.message },
-            500
+            { error: "Error guardando la memoria.", details: error.message },            500
           );
         }
       }
@@ -1198,7 +1257,6 @@ export default {
 
         await userStub.saveConversation(sessionId, sessionId, projectId || null);
         await userStub.touchConversation(sessionId, projectId || null);
-
         const result = await sessionStub.processMessage(
           message,
           memories,
