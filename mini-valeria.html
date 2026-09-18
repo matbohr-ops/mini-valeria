@@ -330,6 +330,17 @@
   .document-content { margin: 0; padding: 14px; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 12.5px/1.5 Consolas, "Courier New", monospace; background: var(--bg-panel); }
   .context-btn { width: 100%; border: 1px solid var(--border-soft); border-radius: 10px; padding: 8px 10px; background: transparent; color: var(--plum); font-family: inherit; cursor: pointer; margin-bottom: 12px; }
   .context-btn:hover { background: var(--bg-app); }
+  .instructions-btn { width: 100%; border: 1px solid var(--border-soft); border-radius: 10px; padding: 8px 10px; background: transparent; color: var(--plum); font-family: inherit; cursor: pointer; margin-bottom: 12px; }
+  .instructions-btn:hover { background: var(--bg-app); }
+  .instructions-panel { position: fixed; inset: 0; background: rgba(36, 27, 47, 0.35); display: none; align-items: center; justify-content: center; padding: 18px; z-index: 13; }
+  .instructions-panel.open { display: flex; }
+  .instructions-card { width: min(100%, 520px); max-height: 86vh; overflow-y: auto; background: var(--bg-panel); border-radius: 18px; padding: 20px; box-shadow: 0 18px 50px rgba(51, 32, 74, 0.22); }
+  .instructions-card h2 { margin: 0; font-size: 18px; }
+  .instructions-subtitle { margin: 5px 0 14px; color: var(--ink-soft); font-size: 12.5px; line-height: 1.4; }
+  .instructions-card textarea { width: 100%; min-height: 220px; resize: vertical; border: 1px solid var(--border-soft); border-radius: 10px; padding: 9px 10px; font: inherit; color: var(--ink); background: var(--bg-panel); line-height: 1.45; }
+  .instructions-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .instructions-actions button { flex: 1; border: none; border-radius: 10px; padding: 9px 10px; font-family: inherit; cursor: pointer; }
+  .instructions-status { margin-top: 9px; color: var(--ink-soft); font-size: 12px; }
   .context-panel { position: fixed; inset: 0; background: rgba(36, 27, 47, 0.35); display: none; align-items: center; justify-content: center; padding: 18px; z-index: 12; }
   .context-panel.open { display: flex; }
   .context-card { width: min(100%, 520px); max-height: 86vh; overflow-y: auto; background: var(--bg-panel); border-radius: 18px; padding: 20px; box-shadow: 0 18px 50px rgba(51, 32, 74, 0.22); }
@@ -642,6 +653,8 @@
   </main>
 
   <footer class="composer">
+    <button class="context-btn" id="context-btn" type="button">Adjuntar información</button>
+    <button class="instructions-btn" id="instructions-btn" type="button">Instrucciones</button>
     <form class="input-row" id="composer-form">
       <textarea
         id="message-input"
@@ -671,6 +684,27 @@
     </div>
   </div>
 
+  <div class="instructions-panel" id="instructions-panel" aria-hidden="true">
+    <div class="instructions-card" role="dialog" aria-modal="true" aria-labelledby="instructions-title">
+      <div class="documents-card-header">
+        <div>
+          <h2 id="instructions-title">Instrucciones</h2>
+          <div class="instructions-subtitle">
+            Define cómo quieres que Mini Valeria trabaje durante esta conversación.
+            Estas instrucciones son temporales y no se guardarán como memoria.
+          </div>
+        </div>
+        <button class="projects-close" id="instructions-close" type="button" aria-label="Cerrar">×</button>
+      </div>
+      <textarea id="instructions-content" placeholder="Ej. Explícame el código paso a paso, no asumas conocimientos avanzados y sé breve."></textarea>
+      <div class="instructions-actions">
+        <button class="project-cancel" id="instructions-cancel" type="button">Cancelar</button>
+        <button id="instructions-save" type="button" style="background: var(--plum); color: var(--bubble-user-text);">Guardar instrucciones</button>
+      </div>
+      <div class="instructions-status" id="instructions-status"></div>
+    </div>
+  </div>
+
 <script>
 (function () {
   "use strict";
@@ -691,6 +725,7 @@
   const SESSION_STORAGE_KEY = "miniValeriaSessionId";
   const PROJECT_STORAGE_KEY = "miniValeriaProjectId";
   const CONTEXT_STORAGE_KEY = "miniValeriaContextAttached";
+  const INSTRUCTIONS_STORAGE_KEY = "miniValeriaInstructionsAttached";
 
   function generateUUID() {
     if (window.crypto && typeof window.crypto.randomUUID === "function") {
@@ -1023,6 +1058,7 @@
   function startNewConversation(projectId, projectName) {
     sessionStorage.setItem(SESSION_STORAGE_KEY, generateUUID());
     sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
+    sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
     activeProjectId = projectId || null;
     activeProjectName = projectName || null;
 
@@ -1216,6 +1252,87 @@
   }
 
   /* ------------------------------------------------------------------
+   * INSTRUCCIONES TEMPORALES DE LA CONVERSACIÓN (V1.7)
+   * ------------------------------------------------------------------ */
+
+  const instructionsPanelEl = document.getElementById("instructions-panel");
+  const instructionsContentEl = document.getElementById("instructions-content");
+  const instructionsStatusEl = document.getElementById("instructions-status");
+  const instructionsSaveBtn = document.getElementById("instructions-save");
+
+  function openInstructionsPanel() {
+    instructionsPanelEl.classList.add("open");
+    instructionsPanelEl.setAttribute("aria-hidden", "false");
+    instructionsStatusEl.textContent = "";
+    instructionsContentEl.focus();
+  }
+
+  function closeInstructionsPanel() {
+    instructionsPanelEl.classList.remove("open");
+    instructionsPanelEl.setAttribute("aria-hidden", "true");
+    instructionsStatusEl.textContent = "";
+  }
+
+  function saveConversationInstructions(content) {
+    return fetch(WORKER_BASE_URL + "/instructions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: getOrCreateUserId(),
+        sessionId: getOrCreateSessionId(),
+        content: content
+      })
+    }).then(function (response) {
+      if (!response.ok) throw new Error("Respuesta HTTP no válida: " + response.status);
+      return response.json();
+    });
+  }
+
+  function clearConversationInstructions() {
+    return fetch(
+      WORKER_BASE_URL + "/instructions?userId=" +
+      encodeURIComponent(getOrCreateUserId()) +
+      "&sessionId=" +
+      encodeURIComponent(getOrCreateSessionId()),
+      { method: "DELETE" }
+    ).then(function (response) {
+      if (!response.ok) throw new Error("Respuesta HTTP no válida: " + response.status);
+      return response.json();
+    });
+  }
+
+  function updateInstructionsButton() {
+    const hasInstructions =
+      sessionStorage.getItem(INSTRUCTIONS_STORAGE_KEY) === "true";
+    document.getElementById("instructions-btn").textContent =
+      hasInstructions ? "Instrucciones · Gestionar" : "Instrucciones";
+  }
+
+  function attachConversationInstructions() {
+    const content = instructionsContentEl.value.trim();
+    if (!content) return;
+
+    instructionsSaveBtn.disabled = true;
+    instructionsSaveBtn.textContent = "Guardando...";
+
+    saveConversationInstructions(content)
+      .then(function () {
+        sessionStorage.setItem(INSTRUCTIONS_STORAGE_KEY, "true");
+        closeInstructionsPanel();
+        updateInstructionsButton();
+      })
+      .catch(function (error) {
+        console.error("Error al guardar instrucciones:", error);
+        instructionsStatusEl.textContent =
+          "No se pudieron guardar las instrucciones. Intenta de nuevo.";
+      })
+      .finally(function () {
+        instructionsSaveBtn.disabled = false;
+        instructionsSaveBtn.textContent = "Guardar instrucciones";
+      });
+  }
+
+  /* ------------------------------------------------------------------
    * INTERFAZ DE CHAT (no debería necesitar cambios al conectar una IA)
    * ------------------------------------------------------------------ */
 
@@ -1318,6 +1435,32 @@
   contextSaveBtn.addEventListener("click", attachConversationContext);
   contextPanelEl.addEventListener("click", function (event) { if (event.target === contextPanelEl) closeContextPanel(); });
   updateContextButton();
+
+  document.getElementById("instructions-btn").addEventListener("click", function () {
+    if (sessionStorage.getItem(INSTRUCTIONS_STORAGE_KEY) === "true") {
+      clearConversationInstructions()
+        .then(function () {
+          sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
+          instructionsContentEl.value = "";
+          updateInstructionsButton();
+          openInstructionsPanel();
+        })
+        .catch(function (error) {
+          console.error(error);
+          alert("No se pudieron reemplazar las instrucciones.");
+        });
+    } else {
+      openInstructionsPanel();
+    }
+  });
+
+  document.getElementById("instructions-close").addEventListener("click", closeInstructionsPanel);
+  document.getElementById("instructions-cancel").addEventListener("click", closeInstructionsPanel);
+  instructionsSaveBtn.addEventListener("click", attachConversationInstructions);
+  instructionsPanelEl.addEventListener("click", function (event) {
+    if (event.target === instructionsPanelEl) closeInstructionsPanel();
+  });
+  updateInstructionsButton();
 
   document.getElementById("projects-btn").addEventListener("click", openProjectsPanel);
   document.getElementById("projects-close").addEventListener("click", closeProjectsPanel);
