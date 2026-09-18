@@ -327,7 +327,19 @@
   .document-view.open { display: block; }
   .document-view-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg-app); border-bottom: 1px solid var(--border-soft); }
   .document-view-title { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
-  .document-content { margin: 0; padding: 14px; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 12.5px/1.5 Consolas, "Courier New", monospace; background: var(--bg-panel); }\n  .context-btn { width: 100%; border: 1px solid var(--border-soft); border-radius: 10px; padding: 8px 10px; background: transparent; color: var(--plum); font-family: inherit; cursor: pointer; margin-bottom: 12px; }\n  .context-btn:hover { background: var(--bg-app); }\n  .context-panel { position: fixed; inset: 0; background: rgba(36, 27, 47, 0.35); display: none; align-items: center; justify-content: center; padding: 18px; z-index: 12; }\n  .context-panel.open { display: flex; }\n  .context-card { width: min(100%, 520px); max-height: 86vh; overflow-y: auto; background: var(--bg-panel); border-radius: 18px; padding: 20px; box-shadow: 0 18px 50px rgba(51, 32, 74, 0.22); }\n  .context-card h2 { margin: 0; font-size: 18px; }\n  .context-subtitle { margin: 5px 0 14px; color: var(--ink-soft); font-size: 12.5px; line-height: 1.4; }\n  .context-card input, .context-card textarea { width: 100%; border: 1px solid var(--border-soft); border-radius: 10px; padding: 9px 10px; font: inherit; color: var(--ink); background: var(--bg-panel); }\n  .context-card textarea { min-height: 220px; resize: vertical; line-height: 1.45; }\n  .context-actions { display: flex; gap: 8px; margin-top: 10px; }\n  .context-actions button { flex: 1; border: none; border-radius: 10px; padding: 9px 10px; font-family: inherit; cursor: pointer; }\n  .context-status { margin-top: 9px; color: var(--ink-soft); font-size: 12px; }
+  .document-content { margin: 0; padding: 14px; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 12.5px/1.5 Consolas, "Courier New", monospace; background: var(--bg-panel); }
+  .context-btn { width: 100%; border: 1px solid var(--border-soft); border-radius: 10px; padding: 8px 10px; background: transparent; color: var(--plum); font-family: inherit; cursor: pointer; margin-bottom: 12px; }
+  .context-btn:hover { background: var(--bg-app); }
+  .context-panel { position: fixed; inset: 0; background: rgba(36, 27, 47, 0.35); display: none; align-items: center; justify-content: center; padding: 18px; z-index: 12; }
+  .context-panel.open { display: flex; }
+  .context-card { width: min(100%, 520px); max-height: 86vh; overflow-y: auto; background: var(--bg-panel); border-radius: 18px; padding: 20px; box-shadow: 0 18px 50px rgba(51, 32, 74, 0.22); }
+  .context-card h2 { margin: 0; font-size: 18px; }
+  .context-subtitle { margin: 5px 0 14px; color: var(--ink-soft); font-size: 12.5px; line-height: 1.4; }
+  .context-card input, .context-card textarea { width: 100%; border: 1px solid var(--border-soft); border-radius: 10px; padding: 9px 10px; font: inherit; color: var(--ink); background: var(--bg-panel); }
+  .context-card textarea { min-height: 220px; resize: vertical; line-height: 1.45; }
+  .context-actions { display: flex; gap: 8px; margin-top: 10px; }
+  .context-actions button { flex: 1; border: none; border-radius: 10px; padding: 9px 10px; font-family: inherit; cursor: pointer; }
+  .context-status { margin-top: 9px; color: var(--ink-soft); font-size: 12px; }
 
   .status-dot {
     width: 8px;
@@ -646,7 +658,20 @@
   </footer>
 </div>
 
-  <div class="context-panel" id="context-panel" aria-hidden="true">\n    <div class="context-card" role="dialog" aria-modal="true" aria-labelledby="context-title">\n      <div class="documents-card-header">\n        <div><h2 id="context-title">Adjuntar información</h2><div class="context-subtitle">Añade texto, código, Markdown, JSON o notas para que Mini Valeria lo tenga en cuenta durante esta conversación. No se guardará como documento del proyecto.</div></div>\n        <button class="projects-close" id="context-close" type="button" aria-label="Cerrar">×</button>\n      </div>\n      <input id="context-name" type="text" maxlength="160" placeholder="Nombre opcional, ej. Código actual">\n      <textarea id="context-content" placeholder="Pega aquí la información que quieres que Mini Valeria use en esta conversación..."></textarea>\n      <div class="context-actions"><button class="project-cancel" id="context-cancel" type="button">Cancelar</button><button id="context-save" type="button" style="background: var(--plum); color: var(--bubble-user-text);">Adjuntar</button></div>\n      <div class="context-status" id="context-status"></div>\n    </div>\n  </div>\n\n<script>
+  <div class="context-panel" id="context-panel" aria-hidden="true">
+    <div class="context-card" role="dialog" aria-modal="true" aria-labelledby="context-title">
+      <div class="documents-card-header">
+        <div><h2 id="context-title">Adjuntar información</h2><div class="context-subtitle">Añade texto, código, Markdown, JSON o notas para que Mini Valeria lo tenga en cuenta durante esta conversación. No se guardará como documento del proyecto.</div></div>
+        <button class="projects-close" id="context-close" type="button" aria-label="Cerrar">×</button>
+      </div>
+      <input id="context-name" type="text" maxlength="160" placeholder="Nombre opcional, ej. Código actual">
+      <textarea id="context-content" placeholder="Pega aquí la información que quieres que Mini Valeria use en esta conversación..."></textarea>
+      <div class="context-actions"><button class="project-cancel" id="context-cancel" type="button">Cancelar</button><button id="context-save" type="button" style="background: var(--plum); color: var(--bubble-user-text);">Adjuntar</button></div>
+      <div class="context-status" id="context-status"></div>
+    </div>
+  </div>
+
+<script>
 (function () {
   "use strict";
 
@@ -664,7 +689,8 @@
    * ------------------------------------------------------------------ */
 
   const SESSION_STORAGE_KEY = "miniValeriaSessionId";
-  const PROJECT_STORAGE_KEY = "miniValeriaProjectId";\n  const CONTEXT_STORAGE_KEY = "miniValeriaContextAttached";
+  const PROJECT_STORAGE_KEY = "miniValeriaProjectId";
+  const CONTEXT_STORAGE_KEY = "miniValeriaContextAttached";
 
   function generateUUID() {
     if (window.crypto && typeof window.crypto.randomUUID === "function") {
@@ -995,7 +1021,8 @@
   const projectDescriptionEl = document.getElementById("project-description");
 
   function startNewConversation(projectId, projectName) {
-    sessionStorage.setItem(SESSION_STORAGE_KEY, generateUUID());\n    sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
+    sessionStorage.setItem(SESSION_STORAGE_KEY, generateUUID());
+    sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
     activeProjectId = projectId || null;
     activeProjectName = projectName || null;
 
@@ -1161,7 +1188,34 @@
     fetch(url, { method: "DELETE" }).then(function (response) { if (!response.ok) throw new Error("Respuesta HTTP no válida: " + response.status); return response.json(); }).then(function () { closeDocumentView(); loadDocuments(); }).catch(function (error) { console.error("Error al borrar documento:", error); alert("No se pudo borrar la información."); });
   }
 
-  /* ------------------------------------------------------------------\n   * CONTEXTO TEMPORAL DE LA CONVERSACIÓN (V1.6-B.2)\n   * ------------------------------------------------------------------ */\n  const contextPanelEl = document.getElementById("context-panel");\n  const contextNameEl = document.getElementById("context-name");\n  const contextContentEl = document.getElementById("context-content");\n  const contextStatusEl = document.getElementById("context-status");\n  const contextSaveBtn = document.getElementById("context-save");\n\n  function openContextPanel() { contextPanelEl.classList.add("open"); contextPanelEl.setAttribute("aria-hidden", "false"); contextStatusEl.textContent = ""; contextNameEl.focus(); }\n  function closeContextPanel() { contextPanelEl.classList.remove("open"); contextPanelEl.setAttribute("aria-hidden", "true"); contextStatusEl.textContent = ""; }\n  function saveConversationContext(name, content) {\n    return fetch(WORKER_BASE_URL + "/context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: getOrCreateUserId(), sessionId: getOrCreateSessionId(), name: name, content: content }) }).then(function (response) { if (!response.ok) throw new Error("Respuesta HTTP no válida: " + response.status); return response.json(); });\n  }\n  function clearConversationContext() {\n    return fetch(WORKER_BASE_URL + "/context?userId=" + encodeURIComponent(getOrCreateUserId()) + "&sessionId=" + encodeURIComponent(getOrCreateSessionId()), { method: "DELETE" }).then(function (response) { if (!response.ok) throw new Error("Respuesta HTTP no válida: " + response.status); return response.json(); });\n  }\n  function updateContextButton() {\n    const hasContext = sessionStorage.getItem(CONTEXT_STORAGE_KEY) === "true";\n    document.getElementById("context-btn").textContent = hasContext ? "Información adjunta · Gestionar" : "Adjuntar información";\n  }\n  function attachConversationContext() {\n    const name = contextNameEl.value.trim(); const content = contextContentEl.value; if (!content.trim()) return;\n    contextSaveBtn.disabled = true; contextSaveBtn.textContent = "Adjuntando...";\n    saveConversationContext(name, content).then(function () { sessionStorage.setItem(CONTEXT_STORAGE_KEY, "true"); contextNameEl.value = ""; contextContentEl.value = ""; closeContextPanel(); updateContextButton(); }).catch(function (error) { console.error("Error al adjuntar contexto:", error); contextStatusEl.textContent = "No se pudo adjuntar la información. Intenta de nuevo."; }).finally(function () { contextSaveBtn.disabled = false; contextSaveBtn.textContent = "Adjuntar"; });\n  }\n\n  /* ------------------------------------------------------------------
+  /* ------------------------------------------------------------------
+   * CONTEXTO TEMPORAL DE LA CONVERSACIÓN (V1.6-B.2)
+   * ------------------------------------------------------------------ */
+  const contextPanelEl = document.getElementById("context-panel");
+  const contextNameEl = document.getElementById("context-name");
+  const contextContentEl = document.getElementById("context-content");
+  const contextStatusEl = document.getElementById("context-status");
+  const contextSaveBtn = document.getElementById("context-save");
+
+  function openContextPanel() { contextPanelEl.classList.add("open"); contextPanelEl.setAttribute("aria-hidden", "false"); contextStatusEl.textContent = ""; contextNameEl.focus(); }
+  function closeContextPanel() { contextPanelEl.classList.remove("open"); contextPanelEl.setAttribute("aria-hidden", "true"); contextStatusEl.textContent = ""; }
+  function saveConversationContext(name, content) {
+    return fetch(WORKER_BASE_URL + "/context", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: getOrCreateUserId(), sessionId: getOrCreateSessionId(), name: name, content: content }) }).then(function (response) { if (!response.ok) throw new Error("Respuesta HTTP no válida: " + response.status); return response.json(); });
+  }
+  function clearConversationContext() {
+    return fetch(WORKER_BASE_URL + "/context?userId=" + encodeURIComponent(getOrCreateUserId()) + "&sessionId=" + encodeURIComponent(getOrCreateSessionId()), { method: "DELETE" }).then(function (response) { if (!response.ok) throw new Error("Respuesta HTTP no válida: " + response.status); return response.json(); });
+  }
+  function updateContextButton() {
+    const hasContext = sessionStorage.getItem(CONTEXT_STORAGE_KEY) === "true";
+    document.getElementById("context-btn").textContent = hasContext ? "Información adjunta · Gestionar" : "Adjuntar información";
+  }
+  function attachConversationContext() {
+    const name = contextNameEl.value.trim(); const content = contextContentEl.value; if (!content.trim()) return;
+    contextSaveBtn.disabled = true; contextSaveBtn.textContent = "Adjuntando...";
+    saveConversationContext(name, content).then(function () { sessionStorage.setItem(CONTEXT_STORAGE_KEY, "true"); contextNameEl.value = ""; contextContentEl.value = ""; closeContextPanel(); updateContextButton(); }).catch(function (error) { console.error("Error al adjuntar contexto:", error); contextStatusEl.textContent = "No se pudo adjuntar la información. Intenta de nuevo."; }).finally(function () { contextSaveBtn.disabled = false; contextSaveBtn.textContent = "Adjuntar"; });
+  }
+
+  /* ------------------------------------------------------------------
    * INTERFAZ DE CHAT (no debería necesitar cambios al conectar una IA)
    * ------------------------------------------------------------------ */
 
@@ -1252,7 +1306,20 @@
 
   document.getElementById("send-btn").addEventListener("click", handleSend);
 
-  document.getElementById("context-btn").addEventListener("click", function () {\n    if (sessionStorage.getItem(CONTEXT_STORAGE_KEY) === "true") {\n      if (confirm("Ya hay información adjunta a esta conversación. ¿Quieres reemplazarla?")) {\n        clearConversationContext().then(function () { sessionStorage.removeItem(CONTEXT_STORAGE_KEY); updateContextButton(); openContextPanel(); }).catch(function (error) { console.error(error); alert("No se pudo reemplazar la información."); });\n      }\n    } else { openContextPanel(); }\n  });\n  document.getElementById("context-close").addEventListener("click", closeContextPanel);\n  document.getElementById("context-cancel").addEventListener("click", closeContextPanel);\n  contextSaveBtn.addEventListener("click", attachConversationContext);\n  contextPanelEl.addEventListener("click", function (event) { if (event.target === contextPanelEl) closeContextPanel(); });\n  updateContextButton();\n\n  document.getElementById("projects-btn").addEventListener("click", openProjectsPanel);
+  document.getElementById("context-btn").addEventListener("click", function () {
+    if (sessionStorage.getItem(CONTEXT_STORAGE_KEY) === "true") {
+      if (confirm("Ya hay información adjunta a esta conversación. ¿Quieres reemplazarla?")) {
+        clearConversationContext().then(function () { sessionStorage.removeItem(CONTEXT_STORAGE_KEY); updateContextButton(); openContextPanel(); }).catch(function (error) { console.error(error); alert("No se pudo reemplazar la información."); });
+      }
+    } else { openContextPanel(); }
+  });
+  document.getElementById("context-close").addEventListener("click", closeContextPanel);
+  document.getElementById("context-cancel").addEventListener("click", closeContextPanel);
+  contextSaveBtn.addEventListener("click", attachConversationContext);
+  contextPanelEl.addEventListener("click", function (event) { if (event.target === contextPanelEl) closeContextPanel(); });
+  updateContextButton();
+
+  document.getElementById("projects-btn").addEventListener("click", openProjectsPanel);
   document.getElementById("projects-close").addEventListener("click", closeProjectsPanel);
   document.getElementById("documents-close").addEventListener("click", closeDocumentsPanel);
   document.getElementById("document-view-close").addEventListener("click", closeDocumentView);
