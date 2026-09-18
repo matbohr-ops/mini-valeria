@@ -422,16 +422,18 @@
   }
 
   .conversation-status {
-    display: flex;
+    display: flex !important;
     align-items: center;
     gap: 8px;
     min-height: 34px;
-    padding: 6px 16px;
+    width: 100%;
+    padding: 7px 16px;
     background: #FAF8FC;
     border-bottom: 1px solid var(--border-soft);
     color: var(--ink-soft);
     font-size: 11.5px;
     flex-shrink: 0;
+    visibility: visible !important;
   }
 
   .conversation-status-label {
@@ -746,8 +748,8 @@
   </header>
 
   <div class="conversation-status" id="conversation-status" aria-label="Estado de la conversación">
-    <span class="conversation-status-label">Estado</span>
-    <div class="conversation-status-items" id="conversation-status-items"></div>
+    <span class="conversation-status-label">Estado de la conversación</span>
+    <div class="conversation-status-items" id="conversation-status-items">Sin contexto temporal ni instrucciones</div>
   </div>
 
   <div class="conversations-panel" id="conversations-panel" aria-hidden="true">
