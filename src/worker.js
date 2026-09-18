@@ -265,6 +265,10 @@ export class ConversationSession extends DurableObject {
     return (await this.ctx.storage.get("history")) || [];
   }
 
+  async deleteAll() {
+    await this.ctx.storage.deleteAll();
+  }
+
   async processMessage(
     message,
     memories,
