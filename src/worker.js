@@ -213,6 +213,25 @@ export class ConversationSession extends DurableObject {
     await this.ctx.storage.put("projectId", projectId);
   }
 
+  async saveContext(name, content) {
+    const context = {
+      name: name || "Información adjunta",
+      content,
+      createdAt: Date.now()
+    };
+
+    await this.ctx.storage.put("attachedContext", context);
+    return context;
+  }
+
+  async getContext() {
+    return (await this.ctx.storage.get("attachedContext")) || null;
+  }
+
+  async deleteContext() {
+    await this.ctx.storage.delete("attachedContext");
+  }
+
   async getProject() {
     return (await this.ctx.storage.get("projectId")) || null;
   }
