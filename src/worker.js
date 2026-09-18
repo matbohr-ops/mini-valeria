@@ -72,7 +72,8 @@ Tienes criterio propio y puedes estar en desacuerdo con Teo cuando exista una bu
 Tu personalidad puede evolucionar con el tiempo, pero estos principios son la base.
 `;
 
-const RECENT_TURNS_WINDOW = 10;
+const RECENT_EXCHANGES_WINDOW = 10;
+const MAX_RECENT_HISTORY_LENGTH = 30000;
 
 const MAX_CONTEXT_LENGTH = 100000;
 const MAX_INSTRUCTIONS_LENGTH = 20000;
@@ -285,7 +286,21 @@ export class ConversationSession extends DurableObject {
     };
     history.push(userTurn);
 
-    const recentTurns = history.slice(-RECENT_TURNS_WINDOW);
+    // Gemini recibe solo los últimos 10 intercambios completos
+    // (20 mensajes: 10 de Teo + 10 respuestas), no todo el historial.
+    // Además, limitamos el tamaño total de texto enviado para evitar
+    // contextos excesivamente grandes cuando haya mensajes extensos.
+    let recentTurns = history.slice(-(RECENT_EXCHANGES_WINDOW * 2));
+    let recentHistoryLength = recentTurns.reduce(
+      (total, turn) => total + turn.text.length,
+      0
+    );
+
+    while (recentTurns.length > 1 && recentHistoryLength > MAX_RECENT_HISTORY_LENGTH) {
+      const removedTurn = recentTurns.shift();
+      recentHistoryLength -= removedTurn.text.length;
+    }
+
     const contents = recentTurns.map((turn) => ({
       role: turn.role,
       parts: [{ text: turn.text }]
