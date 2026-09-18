@@ -679,7 +679,7 @@
       </div>
       <input id="context-name" type="text" maxlength="160" placeholder="Nombre opcional, ej. Código actual">
       <textarea id="context-content" placeholder="Pega aquí la información que quieres que Mini Valeria use en esta conversación..."></textarea>
-      <div class="context-actions"><button class="project-cancel" id="context-cancel" type="button">Cancelar</button><button id="context-save" type="button" style="background: var(--plum); color: var(--bubble-user-text);">Adjuntar</button></div>
+      <div class="context-actions"><button class="project-cancel" id="context-cancel" type="button">Cancelar</button><button id="context-clear" type="button" style="background: transparent; color: var(--ink-soft); border: 1px solid var(--border-soft);">Quitar</button><button id="context-save" type="button" style="background: var(--plum); color: var(--bubble-user-text);">Adjuntar</button></div>
       <div class="context-status" id="context-status"></div>
     </div>
   </div>
@@ -699,6 +699,7 @@
       <textarea id="instructions-content" placeholder="Ej. Explícame el código paso a paso, no asumas conocimientos avanzados y sé breve."></textarea>
       <div class="instructions-actions">
         <button class="project-cancel" id="instructions-cancel" type="button">Cancelar</button>
+        <button id="instructions-clear" type="button" style="background: transparent; color: var(--ink-soft); border: 1px solid var(--border-soft);">Quitar</button>
         <button id="instructions-save" type="button" style="background: var(--plum); color: var(--bubble-user-text);">Guardar instrucciones</button>
       </div>
       <div class="instructions-status" id="instructions-status"></div>
@@ -1241,6 +1242,21 @@
   function clearConversationContext() {
     return fetch(WORKER_BASE_URL + "/context?userId=" + encodeURIComponent(getOrCreateUserId()) + "&sessionId=" + encodeURIComponent(getOrCreateSessionId()), { method: "DELETE" }).then(function (response) { if (!response.ok) throw new Error("Respuesta HTTP no válida: " + response.status); return response.json(); });
   }
+  function clearConversationContextFromUI() {
+    clearConversationContext()
+      .then(function () {
+        sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
+        contextNameEl.value = "";
+        contextContentEl.value = "";
+        updateContextButton();
+        closeContextPanel();
+      })
+      .catch(function (error) {
+        console.error("Error al quitar el contexto:", error);
+        contextStatusEl.textContent = "No se pudo quitar el contexto. Intenta de nuevo.";
+      });
+  }
+
   function updateContextButton() {
     const hasContext = sessionStorage.getItem(CONTEXT_STORAGE_KEY) === "true";
     document.getElementById("context-btn").textContent = hasContext ? "Información adjunta · Gestionar" : "Adjuntar información";
@@ -1299,6 +1315,20 @@
       if (!response.ok) throw new Error("Respuesta HTTP no válida: " + response.status);
       return response.json();
     });
+  }
+
+  function clearConversationInstructionsFromUI() {
+    clearConversationInstructions()
+      .then(function () {
+        sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
+        instructionsContentEl.value = "";
+        updateInstructionsButton();
+        closeInstructionsPanel();
+      })
+      .catch(function (error) {
+        console.error("Error al quitar instrucciones:", error);
+        instructionsStatusEl.textContent = "No se pudieron quitar las instrucciones. Intenta de nuevo.";
+      });
   }
 
   function updateInstructionsButton() {
@@ -1433,6 +1463,15 @@
   document.getElementById("context-close").addEventListener("click", closeContextPanel);
   document.getElementById("context-cancel").addEventListener("click", closeContextPanel);
   contextSaveBtn.addEventListener("click", attachConversationContext);
+  document.getElementById("context-clear").addEventListener("click", function () {
+    if (sessionStorage.getItem(CONTEXT_STORAGE_KEY) !== "true") {
+      closeContextPanel();
+      return;
+    }
+    if (confirm("¿Quitar la información adjunta de esta conversación?")) {
+      clearConversationContextFromUI();
+    }
+  });
   contextPanelEl.addEventListener("click", function (event) { if (event.target === contextPanelEl) closeContextPanel(); });
   updateContextButton();
 
@@ -1457,6 +1496,15 @@
   document.getElementById("instructions-close").addEventListener("click", closeInstructionsPanel);
   document.getElementById("instructions-cancel").addEventListener("click", closeInstructionsPanel);
   instructionsSaveBtn.addEventListener("click", attachConversationInstructions);
+  document.getElementById("instructions-clear").addEventListener("click", function () {
+    if (sessionStorage.getItem(INSTRUCTIONS_STORAGE_KEY) !== "true") {
+      closeInstructionsPanel();
+      return;
+    }
+    if (confirm("¿Quitar las instrucciones de esta conversación?")) {
+      clearConversationInstructionsFromUI();
+    }
+  });
   instructionsPanelEl.addEventListener("click", function (event) {
     if (event.target === instructionsPanelEl) closeInstructionsPanel();
   });
