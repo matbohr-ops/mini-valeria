@@ -261,6 +261,10 @@ export class ConversationSession extends DurableObject {
     return (await this.ctx.storage.get("projectId")) || null;
   }
 
+  async getHistory() {
+    return (await this.ctx.storage.get("history")) || [];
+  }
+
   async processMessage(
     message,
     memories,
@@ -441,6 +445,51 @@ export class UserMemory extends DurableObject {
     return projects.find((project) => project.id === projectId) || null;
   }
 
+  async saveConversation(conversationId, sessionId, projectId = null, name = "") {
+    const conversations = (await this.ctx.storage.get("conversations")) || [];
+    const existing = conversations.find((conversation) => conversation.id === conversationId);
+
+    if (existing) {
+      existing.updatedAt = Date.now();
+      if (projectId !== undefined) existing.projectId = projectId;
+      if (name) existing.name = name;
+      await this.ctx.storage.put("conversations", conversations);
+      return existing;
+    }
+
+    const conversation = {
+      id: conversationId,
+      sessionId: sessionId,
+      name: name || "Nueva conversación",
+      projectId: projectId || null,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    conversations.unshift(conversation);
+    await this.ctx.storage.put("conversations", conversations);
+    return conversation;
+  }
+
+  async getConversations() {
+    return (await this.ctx.storage.get("conversations")) || [];
+  }
+
+  async getConversation(conversationId) {
+    const conversations = (await this.ctx.storage.get("conversations")) || [];
+    return conversations.find((conversation) => conversation.id === conversationId) || null;
+  }
+
+  async touchConversation(conversationId, projectId = undefined) {
+    const conversations = (await this.ctx.storage.get("conversations")) || [];
+    const conversation = conversations.find((item) => item.id === conversationId);
+    if (!conversation) return null;
+    conversation.updatedAt = Date.now();
+    if (projectId !== undefined) conversation.projectId = projectId;
+    await this.ctx.storage.put("conversations", conversations);
+    return conversation;
+  }
+
   async saveDocument(projectId, name, content) {
     const documents = (await this.ctx.storage.get("documents")) || [];
 
@@ -525,6 +574,41 @@ export default {
             { error: "Error leyendo las memorias.", details: error.message },
             500
           );
+        }
+      }
+
+      // GET /conversations?userId=...
+      if (url.pathname === "/conversations") {
+        try {
+          const userId = url.searchParams.get("userId");
+          if (!userId) return jsonResponse({ error: "No se recibió un userId válido." }, 400);
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const conversations = await stub.getConversations();
+          return jsonResponse({ success: true, conversations: conversations });
+        } catch (error) {
+          return jsonResponse({ error: "Error leyendo las conversaciones.", details: error.message }, 500);
+        }
+      }
+
+      // GET /conversations/:id?userId=...
+      if (url.pathname.startsWith("/conversations/")) {
+        try {
+          const conversationId = url.pathname.split("/")[2];
+          const userId = url.searchParams.get("userId");
+          if (!conversationId || !userId) return jsonResponse({ error: "Se requieren conversationId y userId válidos." }, 400);
+          const userDoId = env.USER_MEMORY.idFromName(userId);
+          const userStub = env.USER_MEMORY.get(userDoId);
+          const conversation = await userStub.getConversation(conversationId);
+          if (!conversation) return jsonResponse({ error: "La conversación solicitada no existe." }, 404);
+          const sessionDoId = env.CONVERSATION_SESSION.idFromName(conversation.sessionId);
+          const sessionStub = env.CONVERSATION_SESSION.get(sessionDoId);
+          const history = await sessionStub.getHistory();
+          const context = await sessionStub.getContext();
+          const instructions = await sessionStub.getInstructions();
+          return jsonResponse({ success: true, conversation, history, context, instructions });
+        } catch (error) {
+          return jsonResponse({ error: "Error leyendo la conversación.", details: error.message }, 500);
         }
       }
 
@@ -749,6 +833,32 @@ export default {
             { error: "Error guardando la memoria.", details: error.message },
             500
           );
+        }
+      }
+
+      // POST /conversations { userId, conversationId?, projectId?, name? }
+      if (url.pathname === "/conversations") {
+        try {
+          const body = await request.json();
+          const userId = body.userId;
+          const conversationId = body.conversationId || crypto.randomUUID();
+          const projectId = body.projectId || null;
+          const name = typeof body.name === "string" ? body.name.trim() : "";
+          if (!userId || typeof userId !== "string") return jsonResponse({ error: "No se recibió un userId válido." }, 400);
+
+          if (projectId) {
+            const userDoId = env.USER_MEMORY.idFromName(userId);
+            const userStub = env.USER_MEMORY.get(userDoId);
+            const project = await userStub.getProject(projectId);
+            if (!project) return jsonResponse({ error: "El proyecto solicitado no existe." }, 404);
+          }
+
+          const userDoId = env.USER_MEMORY.idFromName(userId);
+          const userStub = env.USER_MEMORY.get(userDoId);
+          const conversation = await userStub.saveConversation(conversationId, conversationId, projectId, name);
+          return jsonResponse({ success: true, conversation: conversation });
+        } catch (error) {
+          return jsonResponse({ error: "Error creando la conversación.", details: error.message }, 500);
         }
       }
 
@@ -1019,6 +1129,9 @@ export default {
         const conversationContext = await sessionStub.getContext();
         const conversationInstructions = await sessionStub.getInstructions();
 
+        await userStub.saveConversation(sessionId, sessionId, projectId || null);
+        await userStub.touchConversation(sessionId, projectId || null);
+
         const result = await sessionStub.processMessage(
           message,
           memories,
@@ -1027,9 +1140,11 @@ export default {
           conversationInstructions
         );
 
+        const conversation = await userStub.getConversation(sessionId);
         return jsonResponse({
           reply: result.reply,
-          memorySuggestion: result.memorySuggestion
+          memorySuggestion: result.memorySuggestion,
+          conversation: conversation
         });
       } catch (error) {
         return jsonResponse(
