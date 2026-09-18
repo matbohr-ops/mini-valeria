@@ -102,8 +102,7 @@ function jsonResponse(data, status = 200) {
 function buildSystemPromptWithMemory(memories, projectContext = null) {
   const memoryContext =
     memories.length > 0
-      ? memories.map((memory) => `- ${memory.text}`).join("
-")
+      ? memories.map((memory) => `- ${memory.text}`).join("\n")
       : "No hay memorias guardadas todavía.";
 
   const projectContextText = projectContext
@@ -252,8 +251,7 @@ export class ConversationSession extends DurableObject {
       parts: [{ text: turn.text }]
     }));
 
-    const contextText = conversationContext ? `
-INFORMACIÓN ADJUNTA A ESTA CONVERSACIÓN:
+    const contextText = conversationContext ? `\nINFORMACIÓN ADJUNTA A ESTA CONVERSACIÓN:
 
 Nombre: ${conversationContext.name || "Información adjunta"}
 
