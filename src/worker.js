@@ -442,9 +442,9 @@ ${conversationInstructions.content}
         functionResponseParts.push({
           functionResponse: {
             name: functionCall.name,
-            id: functionCall.id,
+            ...(functionCall.id ? { id: functionCall.id } : {}),
             response: {
-              result: toolResult
+              output: toolResult
             }
           }
         });
