@@ -339,47 +339,126 @@ ${conversationInstructions.content}
 `
       : "";
 
-    const response = await fetch(GEMINI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": this.env.GEMINI_API_KEY
-      },
-      body: JSON.stringify({
-        systemInstruction: {
-          parts: [
-            {
-              text:
-                buildSystemPromptWithMemory(memories, projectContext) +
-                contextText +
-                instructionsText
-            }
-          ]
+    // V1.9-C: Gemini puede solicitar herramientas internas.
+    // El Worker ejecuta cada llamada con el userId del servidor y devuelve
+    // el resultado a Gemini para que construya la respuesta final.
+    const geminiContents = [...contents];
+    const toolDeclarations = getToolDefinitions();
+
+    let finalData = null;
+    let finalRawText = "";
+
+    for (let toolRound = 0; toolRound < 3; toolRound += 1) {
+      const response = await fetch(GEMINI_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": this.env.GEMINI_API_KEY
         },
-        contents: contents,
-        generationConfig: {
-          responseMimeType: "application/json"
+        body: JSON.stringify({
+          systemInstruction: {
+            parts: [
+              {
+                text:
+                  buildSystemPromptWithMemory(memories, projectContext) +
+                  contextText +
+                  instructionsText
+              }
+            ]
+          },
+          contents: geminiContents,
+          tools: [
+            {
+              functionDeclarations: toolDeclarations
+            }
+          ],
+          generationConfig: {
+            responseMimeType: "application/json"
+          }
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const error = new Error("Gemini respondió con un error.");
+        error.geminiStatus = response.status;
+        error.geminiBody = data;
+        throw error;
+      }
+
+      finalData = data;
+
+      const candidate = data.candidates?.[0];
+      const candidateContent = candidate?.content;
+      const parts = candidateContent?.parts || [];
+
+      const functionCalls = parts
+        .map((part) => part.functionCall)
+        .filter(Boolean);
+
+      if (functionCalls.length === 0) {
+        finalRawText = parts
+          .map((part) => part.text || "")
+          .join("")
+          .trim();
+        break;
+      }
+
+      // Conservamos la respuesta del modelo que contiene los functionCall.
+      // No se guarda en el historial visible; solo forma parte del turno
+      // interno necesario para completar esta petición.
+      geminiContents.push(candidateContent);
+
+      const functionResponseParts = [];
+
+      for (const functionCall of functionCalls) {
+        let toolResult;
+
+        try {
+          toolResult = await executeInternalTool(
+            functionCall.name,
+            functionCall.args || {},
+            userId,
+            this.env
+          );
+        } catch (toolError) {
+          toolResult = {
+            error: toolError.message || "La herramienta no pudo ejecutarse."
+          };
         }
-      })
-    });
 
-    const data = await response.json();
+        functionResponseParts.push({
+          functionResponse: {
+            name: functionCall.name,
+            id: functionCall.id,
+            response: {
+              output: toolResult
+            }
+          }
+        });
+      }
 
-    if (!response.ok) {
-      const error = new Error("Gemini respondió con un error.");
-      error.geminiStatus = response.status;
-      error.geminiBody = data;
-      throw error;
+      geminiContents.push({
+        role: "user",
+        parts: functionResponseParts
+      });
     }
 
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    if (!finalRawText) {
+      finalRawText =
+        finalData?.candidates?.[0]?.content?.parts
+          ?.map((part) => part.text || "")
+          .join("")
+          .trim() || "";
+    }
 
     let parsedResponse;
     try {
-      parsedResponse = JSON.parse(rawText);
+      parsedResponse = JSON.parse(finalRawText);
     } catch (error) {
       parsedResponse = {
-        reply: rawText || "No recibí una respuesta de Gemini.",
+        reply: finalRawText || "No recibí una respuesta de Gemini.",
         memorySuggestion: {
           shouldSuggest: false,
           content: null
