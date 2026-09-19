@@ -451,7 +451,8 @@ ${conversationInstructions.content}
       }
 
       geminiContents.push({
-        role: "user",
+        // Gemini 3 espera las respuestas de herramientas en un turno "tool".
+        role: "tool",
         parts: functionResponseParts
       });
     }
