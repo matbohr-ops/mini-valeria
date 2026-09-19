@@ -406,7 +406,12 @@ ${conversationInstructions.content}
         round: toolRound + 1,
         httpStatus: response.status,
         finishReason: candidate?.finishReason || null,
-        partTypes: partsForDebug(candidate?.content?.parts || []),
+        partTypes: (candidate?.content?.parts || []).map((part) => {
+          if (part.functionCall) return "functionCall";
+          if (part.text) return "text";
+          if (part.thoughtSignature) return "thoughtSignature";
+          return Object.keys(part || {}).join(",") || "unknown";
+        }),
         functionCalls: (candidate?.content?.parts || [])
           .map((part) => part.functionCall || null)
           .filter(Boolean)
