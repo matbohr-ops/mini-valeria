@@ -1131,10 +1131,33 @@
         });
       })
       .then(function (response) {
-        if (!response.ok) {
-          throw new Error("Respuesta HTTP no válida: " + response.status);
-        }
-        return response.json();
+        return response.text().then(function (rawBody) {
+          let data = null;
+          try {
+            data = rawBody ? JSON.parse(rawBody) : null;
+          } catch (parseError) {
+            data = null;
+          }
+
+          if (!response.ok) {
+            const serverMessage =
+              data && data.reply
+                ? data.reply
+                : data && data.details
+                  ? data.details
+                  : rawBody || "Sin detalles del servidor.";
+
+            throw new Error(
+              "HTTP " + response.status + " — " + serverMessage
+            );
+          }
+
+          if (!data) {
+            throw new Error("El Worker devolvió una respuesta vacía o inválida.");
+          }
+
+          return data;
+        });
       })
       .then(function (data) {
         if (!data || typeof data.reply !== "string") {
