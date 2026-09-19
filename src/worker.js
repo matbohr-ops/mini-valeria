@@ -134,6 +134,13 @@ Usa estas memorias como contexto cuando sean relevantes para responder a Teo.
 
 No menciones las memorias como una lista ni digas que las estás leyendo internamente.
 
+HERRAMIENTAS INTERNAS:
+Tienes acceso a herramientas internas para consultar información persistente de Teo.
+Cuando Teo pida consultar sus memorias, proyectos, documentos o conversaciones, utiliza
+la herramienta interna correspondiente en lugar de decir que no tienes acceso a esa información.
+Si la solicitud puede resolverse mediante una herramienta disponible, debes usarla antes de responder.
+No inventes resultados: utiliza el resultado real de la herramienta.
+
 Si una memoria no es relevante para la conversación actual, simplemente ignórala.
 
 DETECCIÓN DE MEMORIA SUGERIDA:
@@ -372,9 +379,12 @@ ${conversationInstructions.content}
               functionDeclarations: toolDeclarations
             }
           ],
-          generationConfig: {
-            responseMimeType: "application/json"
-          }
+          toolConfig: {
+            functionCallingConfig: {
+              mode: "AUTO"
+            }
+          },
+          generationConfig: {}
         })
       });
 
@@ -433,7 +443,7 @@ ${conversationInstructions.content}
             name: functionCall.name,
             id: functionCall.id,
             response: {
-              output: toolResult
+              result: toolResult
             }
           }
         });
