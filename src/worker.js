@@ -284,6 +284,7 @@ export class ConversationSession extends DurableObject {
 
   async processMessage(
     message,
+    userId,
     memories,
     projectContext = null,
     conversationContext = null,
@@ -463,12 +464,54 @@ ${conversationInstructions.content}
           .trim() || "";
     }
 
-    let parsedResponse;
+    // Normaliza la salida de Gemini para que el frontend reciba
+    // siempre texto natural en `reply`, nunca el objeto JSON crudo.
+    let parsedResponse = null;
+    let normalizedText = finalRawText || "";
+
+    // Gemini puede devolver JSON dentro de un bloque Markdown.
+    normalizedText = normalizedText
+      .replace(/^\s*```json\s*/i, "")
+      .replace(/^\s*```\s*/i, "")
+      .replace(/\s*```\s*$/i, "")
+      .trim();
+
     try {
-      parsedResponse = JSON.parse(finalRawText);
+      parsedResponse = JSON.parse(normalizedText);
     } catch (error) {
+      parsedResponse = null;
+    }
+
+    // Algunos modelos pueden serializar el objeto dos veces.
+    if (parsedResponse && typeof parsedResponse.reply === "string") {
+      const nestedText = parsedResponse.reply.trim();
+      if (
+        (nestedText.startsWith("{") && nestedText.endsWith("}")) ||
+        (nestedText.startsWith("```") && nestedText.endsWith("```"))
+      ) {
+        const cleanedNested = nestedText
+          .replace(/^\s*```json\s*/i, "")
+          .replace(/^\s*```\s*/i, "")
+          .replace(/\s*```\s*$/i, "")
+          .trim();
+
+        try {
+          const nestedResponse = JSON.parse(cleanedNested);
+          if (nestedResponse && typeof nestedResponse.reply === "string") {
+            parsedResponse = {
+              reply: nestedResponse.reply,
+              memorySuggestion: nestedResponse.memorySuggestion
+            };
+          }
+        } catch (error) {
+          // Mantener la respuesta original si no era JSON anidado válido.
+        }
+      }
+    }
+
+    if (!parsedResponse) {
       parsedResponse = {
-        reply: finalRawText || "No recibí una respuesta de Gemini.",
+        reply: normalizedText || "No recibí una respuesta de Gemini.",
         memorySuggestion: {
           shouldSuggest: false,
           content: null
@@ -478,7 +521,7 @@ ${conversationInstructions.content}
 
     const reply =
       typeof parsedResponse.reply === "string"
-        ? parsedResponse.reply
+        ? parsedResponse.reply.trim()
         : "No recibí una respuesta válida de Gemini.";
 
     const memorySuggestion = {
@@ -1363,6 +1406,7 @@ export default {
         await userStub.touchConversation(sessionId, projectId || null);
         const result = await sessionStub.processMessage(
           message,
+          userId,
           memories,
           projectContext,
           conversationContext,
