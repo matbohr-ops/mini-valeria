@@ -355,6 +355,7 @@ ${conversationInstructions.content}
 
     let finalData = null;
     let finalRawText = "";
+    const toolDebugTrace = [];
 
     for (let toolRound = 0; toolRound < 3; toolRound += 1) {
       const response = await fetch(GEMINI_URL, {
@@ -401,6 +402,16 @@ ${conversationInstructions.content}
       finalData = data;
 
       const candidate = data.candidates?.[0];
+      toolDebugTrace.push({
+        round: toolRound + 1,
+        httpStatus: response.status,
+        finishReason: candidate?.finishReason || null,
+        partTypes: partsForDebug(candidate?.content?.parts || []),
+        functionCalls: (candidate?.content?.parts || [])
+          .map((part) => part.functionCall || null)
+          .filter(Boolean)
+          .map((call) => ({ name: call.name, args: call.args || {}, id: call.id || null }))
+      });
       const candidateContent = candidate?.content;
       const parts = candidateContent?.parts || [];
 
@@ -448,6 +459,15 @@ ${conversationInstructions.content}
             }
           }
         });
+
+        toolDebugTrace[toolDebugTrace.length - 1].toolResults = [
+          ...(toolDebugTrace[toolDebugTrace.length - 1].toolResults || []),
+          {
+            name: functionCall.name,
+            args: functionCall.args || {},
+            result: toolResult
+          }
+        ];
       }
 
       geminiContents.push({
@@ -462,6 +482,20 @@ ${conversationInstructions.content}
           ?.map((part) => part.text || "")
           .join("")
           .trim() || "";
+    }
+
+    if (!finalRawText) {
+      const diagnostic = JSON.stringify({
+        message: "Gemini no produjo texto final después del ciclo de herramientas.",
+        rounds: toolDebugTrace
+      });
+      const error = new Error(diagnostic);
+      error.geminiStatus = 500;
+      error.geminiBody = {
+        diagnostic: toolDebugTrace,
+        lastResponse: finalData
+      };
+      throw error;
     }
 
     // Normaliza la salida de Gemini para que el frontend reciba
@@ -1425,7 +1459,10 @@ export default {
             error: "Error interno del Worker.",
             details: error.message,
             geminiStatus: error.geminiStatus || null,
-            geminiBody: error.geminiBody || null
+            geminiBody: error.geminiBody || null,
+            reply: error.geminiBody
+              ? "Diagnóstico V1.9-C: " + error.message
+              : null
           },
           500
         );
