@@ -374,7 +374,7 @@ ${conversationInstructions.content}
             parts: [
               {
                 text:
-                  buildSystemPromptWithMemory(memories, projectContext, sessionId) +
+                  buildSystemPromptWithMemory(memories, projectContext, this.ctx.id.toString()) +
                   contextText +
                   instructionsText
               }
