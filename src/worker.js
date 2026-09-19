@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import { getToolDefinitions, executeTool } from "./tools.js";
 
 const SYSTEM_PROMPT = `
 Eres Mini Valeria, un asistente personal diseñado para trabajar en equipo con Teo.
@@ -86,6 +87,10 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type"
 };
+
+async function executeInternalTool(name, args, userId, env) {
+  return await executeTool(name, args, { env, userId });
+}
 
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -591,6 +596,16 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === "GET") {
+      // GET /tools — catálogo interno de herramientas disponible para el sistema.
+      // V1.9-B solo conecta el catálogo al Worker; Gemini todavía no decide
+      // cuándo usar herramientas. Eso se incorpora en V1.9-C.
+      if (url.pathname === "/tools") {
+        return jsonResponse({
+          success: true,
+          tools: getToolDefinitions()
+        });
+      }
+
       // GET /memories?userId=... (antes era ?sessionId=...)
       if (url.pathname === "/memories") {
         try {
