@@ -12,6 +12,9 @@
  * V1.9-C conectará el catálogo al tool/function calling de Gemini.
  */
 
+const MAX_TOOL_ARGUMENT_LENGTH = 500;
+const MAX_TOOL_RESULT_LENGTH = 60000;
+
 const TOOL_DEFINITIONS = [
   {
     name: "get_memories",
@@ -135,6 +138,10 @@ function validateToolArguments(tool, args) {
     if (property.type === "string" && typeof value !== "string") {
       throw new Error(`El argumento ${key} debe ser texto.`);
     }
+
+    if (property.type === "string" && typeof value === "string" && value.length > MAX_TOOL_ARGUMENT_LENGTH) {
+      throw new Error(`El argumento ${key} supera el límite de ${MAX_TOOL_ARGUMENT_LENGTH} caracteres.`);
+    }
   }
 }
 
@@ -174,8 +181,11 @@ async function executeTool(name, args, { env, userId }) {
     case "get_projects":
       return await userStub.getProjects();
 
-    case "get_project":
-      return await resolveProject(userStub, args.projectId);
+    case "get_project": {
+      const project = await resolveProject(userStub, args.projectId);
+      if (!project) throw new Error("El proyecto solicitado no existe.");
+      return project;
+    }
 
     case "get_documents": {
       const project = await resolveProject(userStub, args.projectId);
@@ -190,7 +200,9 @@ async function executeTool(name, args, { env, userId }) {
       if (!project) {
         throw new Error("El proyecto solicitado no existe.");
       }
-      return await userStub.getDocument(args.documentId, project.id);
+      const document = await userStub.getDocument(args.documentId, project.id);
+      if (!document) throw new Error("El documento solicitado no existe.");
+      return document;
     }
 
     case "get_conversation": {
