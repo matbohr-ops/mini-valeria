@@ -33,13 +33,13 @@ const TOOL_DEFINITIONS = [
   },
   {
     name: "get_project",
-    description: "Obtiene un proyecto específico de Teo por su ID.",
+    description: "Obtiene un proyecto específico de Teo por su ID o por su nombre exacto.",
     parameters: {
       type: "object",
       properties: {
         projectId: {
           type: "string",
-          description: "ID del proyecto."
+          description: "ID del proyecto o nombre exacto del proyecto."
         }
       },
       required: ["projectId"]
@@ -53,7 +53,7 @@ const TOOL_DEFINITIONS = [
       properties: {
         projectId: {
           type: "string",
-          description: "ID del proyecto."
+          description: "ID del proyecto o nombre exacto del proyecto."
         }
       },
       required: ["projectId"]
@@ -67,7 +67,7 @@ const TOOL_DEFINITIONS = [
       properties: {
         projectId: {
           type: "string",
-          description: "ID del proyecto."
+          description: "ID del proyecto o nombre exacto del proyecto."
         },
         documentId: {
           type: "string",
@@ -138,6 +138,24 @@ function validateToolArguments(tool, args) {
   }
 }
 
+async function resolveProject(userStub, projectRef) {
+  const projectById = await userStub.getProject(projectRef);
+  if (projectById) {
+    return projectById;
+  }
+
+  const projects = await userStub.getProjects();
+  const normalizedRef = projectRef.trim().toLowerCase();
+
+  return (
+    projects.find(
+      (project) =>
+        typeof project.name === "string" &&
+        project.name.trim().toLowerCase() === normalizedRef
+    ) || null
+  );
+}
+
 async function executeTool(name, args, { env, userId }) {
   const tool = getToolByName(name);
   validateToolArguments(tool, args);
@@ -157,22 +175,22 @@ async function executeTool(name, args, { env, userId }) {
       return await userStub.getProjects();
 
     case "get_project":
-      return await userStub.getProject(args.projectId);
+      return await resolveProject(userStub, args.projectId);
 
     case "get_documents": {
-      const project = await userStub.getProject(args.projectId);
+      const project = await resolveProject(userStub, args.projectId);
       if (!project) {
         throw new Error("El proyecto solicitado no existe.");
       }
-      return await userStub.getDocuments(args.projectId);
+      return await userStub.getDocuments(project.id);
     }
 
     case "get_document": {
-      const project = await userStub.getProject(args.projectId);
+      const project = await resolveProject(userStub, args.projectId);
       if (!project) {
         throw new Error("El proyecto solicitado no existe.");
       }
-      return await userStub.getDocument(args.documentId, args.projectId);
+      return await userStub.getDocument(args.documentId, project.id);
     }
 
     case "get_conversation": {
