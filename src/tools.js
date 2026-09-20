@@ -336,7 +336,18 @@ function compactCreatedDocument(document) {
   };
 }
 
-async function executeTool(name, args, { env, userId }) {
+async function executeTool(name, args, { env, userId, grantedCapabilities = DEFAULT_GRANTED_CAPABILITIES, confirmationProvided = false }) {
+  const authorization = authorizeTool(name, grantedCapabilities, confirmationProvided);
+  if (!authorization.allowed) {
+    if (authorization.reason === "capability_denied") {
+      throw new Error(`La herramienta requiere la capability ${authorization.capability}.`);
+    }
+    if (authorization.reason === "confirmation_required") {
+      throw new Error("Esta herramienta requiere confirmación antes de ejecutarse.");
+    }
+    throw new Error("Herramienta no autorizada.");
+  }
+
   const tool = getToolByName(name);
   validateToolArguments(tool, args);
 
