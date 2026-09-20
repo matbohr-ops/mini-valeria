@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { getToolDefinitions, executeTool } from "./tools.js";
+import { getToolDefinitions, executeTool, getCapabilitiesCatalog } from "./tools.js";
 
 const SYSTEM_PROMPT = `
 Eres Mini Valeria, un asistente personal diseñado para trabajar en equipo con Teo.
@@ -784,6 +784,13 @@ export default {
         return jsonResponse({
           success: true,
           tools: getToolDefinitions()
+        });
+      }
+
+      if (url.pathname === "/capabilities") {
+        return jsonResponse({
+          success: true,
+          ...getCapabilitiesCatalog()
         });
       }
 
