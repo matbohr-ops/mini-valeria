@@ -1,38 +1,35 @@
 /**
- * Mini Valeria — V1.9-A
- * Sistema base de herramientas internas.
+ * Mini Valeria — V1.9-E
+ * Sistema de herramientas internas de lectura y escritura.
  *
  * Este módulo NO llama a Gemini y NO decide cuándo usar una herramienta.
  * Solo define:
- * 1. el catálogo de herramientas que Gemini podrá conocer;
- * 2. la validación básica de argumentos;
- * 3. la ejecución controlada de herramientas usando el userId del servidor.
+ * 1. el catálogo de herramientas que Gemini puede conocer;
+ * 2. la validación de argumentos;
+ * 3. la ejecución controlada usando el userId del servidor.
  *
- * V1.9-B conectará estas herramientas al Worker.
- * V1.9-C conectará el catálogo al tool/function calling de Gemini.
+ * Las herramientas de escritura solo deben ejecutarse cuando Teo haya
+ * expresado explícitamente la intención de crear o guardar información.
  */
 
 const MAX_TOOL_ARGUMENT_LENGTH = 500;
+const MAX_MEMORY_LENGTH = 1000;
+const MAX_PROJECT_NAME_LENGTH = 100;
+const MAX_PROJECT_DESCRIPTION_LENGTH = 5000;
+const MAX_DOCUMENT_NAME_LENGTH = 200;
+const MAX_DOCUMENT_CONTENT_LENGTH = 100000;
 const MAX_TOOL_RESULT_LENGTH = 60000;
 
 const TOOL_DEFINITIONS = [
   {
     name: "get_memories",
     description: "Obtiene las memorias persistentes de Teo.",
-    parameters: {
-      type: "object",
-      properties: {},
-      required: []
-    }
+    parameters: { type: "object", properties: {}, required: [] }
   },
   {
     name: "get_projects",
     description: "Obtiene los proyectos persistentes de Teo.",
-    parameters: {
-      type: "object",
-      properties: {},
-      required: []
-    }
+    parameters: { type: "object", properties: {}, required: [] }
   },
   {
     name: "get_project",
@@ -40,10 +37,7 @@ const TOOL_DEFINITIONS = [
     parameters: {
       type: "object",
       properties: {
-        projectId: {
-          type: "string",
-          description: "ID del proyecto o nombre exacto del proyecto."
-        }
+        projectId: { type: "string", description: "ID del proyecto o nombre exacto del proyecto." }
       },
       required: ["projectId"]
     }
@@ -54,10 +48,7 @@ const TOOL_DEFINITIONS = [
     parameters: {
       type: "object",
       properties: {
-        projectId: {
-          type: "string",
-          description: "ID del proyecto o nombre exacto del proyecto."
-        }
+        projectId: { type: "string", description: "ID del proyecto o nombre exacto del proyecto." }
       },
       required: ["projectId"]
     }
@@ -68,14 +59,8 @@ const TOOL_DEFINITIONS = [
     parameters: {
       type: "object",
       properties: {
-        projectId: {
-          type: "string",
-          description: "ID del proyecto o nombre exacto del proyecto."
-        },
-        documentId: {
-          type: "string",
-          description: "ID del documento."
-        }
+        projectId: { type: "string", description: "ID del proyecto o nombre exacto del proyecto." },
+        documentId: { type: "string", description: "ID del documento." }
       },
       required: ["projectId", "documentId"]
     }
@@ -86,12 +71,45 @@ const TOOL_DEFINITIONS = [
     parameters: {
       type: "object",
       properties: {
-        conversationId: {
-          type: "string",
-          description: "ID de la conversación."
-        }
+        conversationId: { type: "string", description: "ID de la conversación." }
       },
       required: ["conversationId"]
+    }
+  },
+  {
+    name: "save_memory",
+    description: "Guarda una memoria persistente de Teo. Úsala solo cuando Teo haya pedido explícitamente guardar o recordar esa información.",
+    parameters: {
+      type: "object",
+      properties: {
+        text: { type: "string", description: "Texto breve de la memoria que se debe guardar." }
+      },
+      required: ["text"]
+    }
+  },
+  {
+    name: "create_project",
+    description: "Crea un proyecto persistente para Teo. Úsala solo cuando Teo haya pedido explícitamente crear o guardar un proyecto.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Nombre del proyecto." },
+        description: { type: "string", description: "Descripción del proyecto." }
+      },
+      required: ["name"]
+    }
+  },
+  {
+    name: "create_document",
+    description: "Crea un documento persistente dentro de un proyecto. Úsala solo cuando Teo haya pedido explícitamente crear o guardar un documento.",
+    parameters: {
+      type: "object",
+      properties: {
+        projectId: { type: "string", description: "ID del proyecto o nombre exacto del proyecto." },
+        name: { type: "string", description: "Nombre del documento." },
+        content: { type: "string", description: "Contenido completo del documento." }
+      },
+      required: ["projectId", "name", "content"]
     }
   }
 ];
@@ -109,9 +127,7 @@ function getToolByName(name) {
 }
 
 function validateToolArguments(tool, args) {
-  if (!tool) {
-    throw new Error("Herramienta no encontrada.");
-  }
+  if (!tool) throw new Error("Herramienta no encontrada.");
 
   if (args === null || typeof args !== "object" || Array.isArray(args)) {
     throw new Error("Los argumentos de la herramienta deben ser un objeto.");
@@ -139,17 +155,39 @@ function validateToolArguments(tool, args) {
       throw new Error(`El argumento ${key} debe ser texto.`);
     }
 
-    if (property.type === "string" && typeof value === "string" && value.length > MAX_TOOL_ARGUMENT_LENGTH) {
-      throw new Error(`El argumento ${key} supera el límite de ${MAX_TOOL_ARGUMENT_LENGTH} caracteres.`);
+    if (property.type === "string" && typeof value === "string") {
+      let maxLength = MAX_TOOL_ARGUMENT_LENGTH;
+
+      if (tool.name === "save_memory" && key === "text") {
+        maxLength = MAX_MEMORY_LENGTH;
+      }
+
+      if (tool.name === "create_project" && key === "name") {
+        maxLength = MAX_PROJECT_NAME_LENGTH;
+      }
+
+      if (tool.name === "create_project" && key === "description") {
+        maxLength = MAX_PROJECT_DESCRIPTION_LENGTH;
+      }
+
+      if (tool.name === "create_document" && key === "name") {
+        maxLength = MAX_DOCUMENT_NAME_LENGTH;
+      }
+
+      if (tool.name === "create_document" && key === "content") {
+        maxLength = MAX_DOCUMENT_CONTENT_LENGTH;
+      }
+
+      if (value.length > maxLength) {
+        throw new Error(`El argumento ${key} supera el límite de ${maxLength} caracteres.`);
+      }
     }
   }
 }
 
 async function resolveProject(userStub, projectRef) {
   const projectById = await userStub.getProject(projectRef);
-  if (projectById) {
-    return projectById;
-  }
+  if (projectById) return projectById;
 
   const projects = await userStub.getProjects();
   const normalizedRef = projectRef.trim().toLowerCase();
@@ -161,6 +199,15 @@ async function resolveProject(userStub, projectRef) {
         project.name.trim().toLowerCase() === normalizedRef
     ) || null
   );
+}
+
+function compactCreatedDocument(document) {
+  return {
+    id: document.id,
+    projectId: document.projectId,
+    name: document.name,
+    createdAt: document.createdAt
+  };
 }
 
 async function executeTool(name, args, { env, userId }) {
@@ -189,17 +236,13 @@ async function executeTool(name, args, { env, userId }) {
 
     case "get_documents": {
       const project = await resolveProject(userStub, args.projectId);
-      if (!project) {
-        throw new Error("El proyecto solicitado no existe.");
-      }
+      if (!project) throw new Error("El proyecto solicitado no existe.");
       return await userStub.getDocuments(project.id);
     }
 
     case "get_document": {
       const project = await resolveProject(userStub, args.projectId);
-      if (!project) {
-        throw new Error("El proyecto solicitado no existe.");
-      }
+      if (!project) throw new Error("El proyecto solicitado no existe.");
       const document = await userStub.getDocument(args.documentId, project.id);
       if (!document) throw new Error("El documento solicitado no existe.");
       return document;
@@ -218,12 +261,45 @@ async function executeTool(name, args, { env, userId }) {
       const context = await sessionStub.getContext();
       const instructions = await sessionStub.getInstructions();
 
+      return { conversation, history, context, instructions };
+    }
+
+    case "save_memory": {
+      const memory = await userStub.saveMemory(args.text.trim());
       return {
-        conversation,
-        history,
-        context,
-        instructions
+        id: memory.id,
+        text: memory.text,
+        createdAt: memory.createdAt
       };
+    }
+
+    case "create_project": {
+      const project = await userStub.saveProject(
+        args.name.trim(),
+        typeof args.description === "string" ? args.description.trim() : ""
+      );
+
+      return {
+        id: project.id,
+        name: project.name,
+        description: project.description,
+        createdAt: project.createdAt
+      };
+    }
+
+    case "create_document": {
+      const project = await resolveProject(userStub, args.projectId);
+      if (!project) {
+        throw new Error("El proyecto solicitado no existe.");
+      }
+
+      const document = await userStub.saveDocument(
+        project.id,
+        args.name.trim(),
+        args.content
+      );
+
+      return compactCreatedDocument(document);
     }
 
     default:
