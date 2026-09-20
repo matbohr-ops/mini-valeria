@@ -78,6 +78,91 @@ const MAX_RECENT_HISTORY_LENGTH = 30000;
 const MAX_CONTEXT_LENGTH = 100000;
 const MAX_INSTRUCTIONS_LENGTH = 20000;
 
+// V1.9-F — catálogo central de capacidades y operaciones.
+// Capacidad y confirmación son conceptos distintos: la primera define qué
+// puede hacer Mini Valeria; la segunda define si debe pedir aprobación para
+// una ejecución concreta.
+const CAPABILITY_CATALOG = Object.freeze({
+  "memory:read": { category: "memory", action: "read" },
+  "memory:write": { category: "memory", action: "write" },
+  "project:read": { category: "project", action: "read" },
+  "project:write": { category: "project", action: "write" },
+  "document:read": { category: "document", action: "read" },
+  "document:write": { category: "document", action: "write" },
+  "document:delete": { category: "document", action: "delete" },
+  "conversation:read": { category: "conversation", action: "read" },
+  "conversation:write": { category: "conversation", action: "write" },
+  "conversation:delete": { category: "conversation", action: "delete" },
+  "context:read": { category: "context", action: "read" },
+  "context:write": { category: "context", action: "write" },
+  "context:delete": { category: "context", action: "delete" },
+  "instructions:read": { category: "instructions", action: "read" },
+  "instructions:write": { category: "instructions", action: "write" },
+  "instructions:delete": { category: "instructions", action: "delete" }
+});
+
+// Inventario de operaciones internas. Las operaciones nuevas deben entrar
+// aquí antes de poder pasar el futuro enforcement de permisos.
+const OPERATION_METADATA = Object.freeze({
+  "memory.read": { capability: "memory:read", requiresConfirmation: false },
+  "memory.write": { capability: "memory:write", requiresConfirmation: false },
+  "project.read": { capability: "project:read", requiresConfirmation: false },
+  "project.write": { capability: "project:write", requiresConfirmation: false },
+  "document.read": { capability: "document:read", requiresConfirmation: false },
+  "document.write": { capability: "document:write", requiresConfirmation: false },
+  "document.delete": { capability: "document:delete", requiresConfirmation: true },
+  "conversation.read": { capability: "conversation:read", requiresConfirmation: false },
+  "conversation.write": { capability: "conversation:write", requiresConfirmation: false },
+  "conversation.delete": { capability: "conversation:delete", requiresConfirmation: true },
+  "context.read": { capability: "context:read", requiresConfirmation: false },
+  "context.write": { capability: "context:write", requiresConfirmation: false },
+  "context.delete": { capability: "context:delete", requiresConfirmation: true },
+  "instructions.read": { capability: "instructions:read", requiresConfirmation: false },
+  "instructions.write": { capability: "instructions:write", requiresConfirmation: false },
+  "instructions.delete": { capability: "instructions:delete", requiresConfirmation: true }
+});
+
+const DEFAULT_GRANTED_CAPABILITIES = Object.freeze(Object.keys(CAPABILITY_CATALOG));
+
+function authorizeOperation(
+  operationName,
+  grantedCapabilities = DEFAULT_GRANTED_CAPABILITIES,
+  confirmationProvided = false
+) {
+  const operation = OPERATION_METADATA[operationName];
+
+  // Fail closed para cualquier operación que no haya sido inventariada.
+  if (!operation) {
+    return { allowed: false, reason: "unknown_operation", operation: operationName };
+  }
+
+  const granted = new Set(grantedCapabilities);
+  if (!granted.has(operation.capability)) {
+    return {
+      allowed: false,
+      reason: "capability_denied",
+      operation: operationName,
+      capability: operation.capability
+    };
+  }
+
+  if (operation.requiresConfirmation && !confirmationProvided) {
+    return {
+      allowed: false,
+      reason: "confirmation_required",
+      operation: operationName,
+      capability: operation.capability
+    };
+  }
+
+  return {
+    allowed: true,
+    operation: operationName,
+    capability: operation.capability,
+    requiresConfirmation: operation.requiresConfirmation
+  };
+}
+
 const GEMINI_URL =
   "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent";
 
@@ -591,6 +676,16 @@ export default {
     const url = new URL(request.url);
 
     if (request.method === "GET") {
+      // GET /capabilities — inventario central para diagnóstico y futura UI.
+      if (url.pathname === "/capabilities") {
+        return jsonResponse({
+          capabilities: CAPABILITY_CATALOG,
+          operations: OPERATION_METADATA,
+          enforcement: "catalog-only"
+        });
+      }
+
+
       // GET /memories?userId=... (antes era ?sessionId=...)
       if (url.pathname === "/memories") {
         try {
