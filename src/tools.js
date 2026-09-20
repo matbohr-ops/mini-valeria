@@ -144,7 +144,7 @@ const TOOL_DEFINITIONS = [
       type: "object",
       properties: {
         projectId: { type: "string", description: "ID del proyecto o nombre exacto del proyecto." },
-        documentId: { type: "string", description: "ID del documento que se debe actualizar." },
+        documentId: { type: "string", description: "ID del documento o nombre exacto del documento que se debe actualizar." },
         name: { type: "string", description: "Nuevo nombre del documento, si se quiere cambiar." },
         content: { type: "string", description: "Nuevo contenido completo del documento, si se quiere cambiar." }
       },
@@ -411,7 +411,20 @@ async function executeTool(name, args, { env, userId }) {
         throw new Error("El proyecto solicitado no existe.");
       }
 
-      const document = await userStub.getDocument(args.documentId, project.id);
+      let document = await userStub.getDocument(args.documentId, project.id);
+
+      if (!document) {
+        const documents = await userStub.getDocuments(project.id);
+        const normalizedDocumentRef = args.documentId.trim().toLowerCase();
+
+        document =
+          documents.find(
+            (item) =>
+              typeof item.name === "string" &&
+              item.name.trim().toLowerCase() === normalizedDocumentRef
+          ) || null;
+      }
+
       if (!document) {
         throw new Error("El documento solicitado no existe.");
       }
