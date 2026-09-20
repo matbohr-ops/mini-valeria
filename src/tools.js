@@ -111,6 +111,45 @@ const TOOL_DEFINITIONS = [
       },
       required: ["projectId", "name", "content"]
     }
+  },
+  {
+    name: "update_memory",
+    description: "Actualiza una memoria persistente existente de Teo. Úsala solo cuando Teo haya pedido explícitamente corregir, cambiar o actualizar una memoria concreta.",
+    parameters: {
+      type: "object",
+      properties: {
+        memoryId: { type: "string", description: "ID de la memoria que se debe actualizar." },
+        text: { type: "string", description: "Nuevo texto completo de la memoria." }
+      },
+      required: ["memoryId", "text"]
+    }
+  },
+  {
+    name: "update_project",
+    description: "Actualiza un proyecto persistente existente de Teo. Úsala solo cuando Teo haya pedido explícitamente modificar o actualizar un proyecto concreto.",
+    parameters: {
+      type: "object",
+      properties: {
+        projectId: { type: "string", description: "ID del proyecto o nombre exacto del proyecto." },
+        name: { type: "string", description: "Nuevo nombre del proyecto, si se quiere cambiar." },
+        description: { type: "string", description: "Nueva descripción del proyecto, si se quiere cambiar." }
+      },
+      required: ["projectId"]
+    }
+  },
+  {
+    name: "update_document",
+    description: "Actualiza un documento persistente existente dentro de un proyecto. Úsala solo cuando Teo haya pedido explícitamente modificar o actualizar un documento concreto.",
+    parameters: {
+      type: "object",
+      properties: {
+        projectId: { type: "string", description: "ID del proyecto o nombre exacto del proyecto." },
+        documentId: { type: "string", description: "ID del documento que se debe actualizar." },
+        name: { type: "string", description: "Nuevo nombre del documento, si se quiere cambiar." },
+        content: { type: "string", description: "Nuevo contenido completo del documento, si se quiere cambiar." }
+      },
+      required: ["projectId", "documentId"]
+    }
   }
 ];
 
@@ -174,8 +213,35 @@ function validateToolArguments(tool, args) {
         maxLength = MAX_DOCUMENT_NAME_LENGTH;
       }
 
-      if (tool.name === "create_document" && key === "content") {
+      if (
+        (tool.name === "update_document" && key === "content") ||
+        (tool.name === "create_document" && key === "content")
+      ) {
         maxLength = MAX_DOCUMENT_CONTENT_LENGTH;
+      }
+
+      if (
+        (tool.name === "update_memory" && key === "text")
+      ) {
+        maxLength = MAX_MEMORY_LENGTH;
+      }
+
+      if (
+        (tool.name === "update_project" && key === "name")
+      ) {
+        maxLength = MAX_PROJECT_NAME_LENGTH;
+      }
+
+      if (
+        (tool.name === "update_project" && key === "description")
+      ) {
+        maxLength = MAX_PROJECT_DESCRIPTION_LENGTH;
+      }
+
+      if (
+        (tool.name === "update_document" && key === "name")
+      ) {
+        maxLength = MAX_DOCUMENT_NAME_LENGTH;
       }
 
       if (value.length > maxLength) {
@@ -300,6 +366,71 @@ async function executeTool(name, args, { env, userId }) {
       );
 
       return compactCreatedDocument(document);
+    }
+
+    case "update_memory": {
+      const memory = await userStub.updateMemory(args.memoryId, args.text.trim());
+      if (!memory) {
+        throw new Error("La memoria solicitada no existe.");
+      }
+
+      return {
+        id: memory.id,
+        text: memory.text,
+        createdAt: memory.createdAt,
+        updatedAt: memory.updatedAt
+      };
+    }
+
+    case "update_project": {
+      if (args.name === undefined && args.description === undefined) {
+        throw new Error("Debes indicar al menos un campo para actualizar.");
+      }
+
+      const project = await resolveProject(userStub, args.projectId);
+      if (!project) {
+        throw new Error("El proyecto solicitado no existe.");
+      }
+
+      const updated = await userStub.updateProject(
+        project.id,
+        args.name !== undefined ? args.name.trim() : undefined,
+        args.description !== undefined ? args.description.trim() : undefined
+      );
+
+      return updated;
+    }
+
+    case "update_document": {
+      if (args.name === undefined && args.content === undefined) {
+        throw new Error("Debes indicar al menos un campo para actualizar.");
+      }
+
+      const project = await resolveProject(userStub, args.projectId);
+      if (!project) {
+        throw new Error("El proyecto solicitado no existe.");
+      }
+
+      const document = await userStub.getDocument(args.documentId, project.id);
+      if (!document) {
+        throw new Error("El documento solicitado no existe.");
+      }
+
+      const updated = await userStub.updateDocument(
+        document.id,
+        project.id,
+        args.name !== undefined ? args.name.trim() : undefined,
+        args.content !== undefined ? args.content : undefined
+      );
+
+      return {
+        id: updated.id,
+        projectId: updated.projectId,
+        name: updated.name,
+        content: updated.content,
+        createdAt: updated.createdAt,
+        updatedAt: updated.updatedAt
+      };
     }
 
     default:
