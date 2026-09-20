@@ -20,6 +20,54 @@ const MAX_DOCUMENT_NAME_LENGTH = 200;
 const MAX_DOCUMENT_CONTENT_LENGTH = 100000;
 const MAX_TOOL_RESULT_LENGTH = 60000;
 
+const CAPABILITY_CATALOG = Object.freeze({
+  "memory:read": { description: "Consultar memorias persistentes." },
+  "memory:write": { description: "Crear o actualizar memorias persistentes." },
+  "project:read": { description: "Consultar proyectos persistentes." },
+  "project:write": { description: "Crear o actualizar proyectos persistentes." },
+  "document:read": { description: "Consultar documentos persistentes." },
+  "document:write": { description: "Crear o actualizar documentos persistentes." },
+  "document:delete": { description: "Eliminar documentos persistentes." },
+  "conversation:read": { description: "Consultar conversaciones persistentes." },
+  "conversation:write": { description: "Crear o actualizar conversaciones persistentes." },
+  "conversation:delete": { description: "Eliminar conversaciones persistentes." },
+  "context:read": { description: "Consultar contexto temporal de una conversación." },
+  "context:write": { description: "Crear o actualizar contexto temporal." },
+  "context:delete": { description: "Eliminar contexto temporal." },
+  "instructions:read": { description: "Consultar instrucciones de una conversación." },
+  "instructions:write": { description: "Crear o actualizar instrucciones." },
+  "instructions:delete": { description: "Eliminar instrucciones." }
+});
+
+const TOOL_OPERATION_METADATA = Object.freeze({
+  get_memories: { capability: "memory:read", requiresConfirmation: false },
+  get_projects: { capability: "project:read", requiresConfirmation: false },
+  get_project: { capability: "project:read", requiresConfirmation: false },
+  get_documents: { capability: "document:read", requiresConfirmation: false },
+  get_document: { capability: "document:read", requiresConfirmation: false },
+  get_conversation: { capability: "conversation:read", requiresConfirmation: false },
+  save_memory: { capability: "memory:write", requiresConfirmation: false },
+  create_project: { capability: "project:write", requiresConfirmation: false },
+  create_document: { capability: "document:write", requiresConfirmation: false },
+  update_memory: { capability: "memory:write", requiresConfirmation: false },
+  update_project: { capability: "project:write", requiresConfirmation: false },
+  update_document: { capability: "document:write", requiresConfirmation: false }
+});
+
+const DEFAULT_GRANTED_CAPABILITIES = Object.freeze(Object.keys(CAPABILITY_CATALOG));
+
+function authorizeTool(name, grantedCapabilities = DEFAULT_GRANTED_CAPABILITIES, confirmationProvided = false) {
+  const metadata = TOOL_OPERATION_METADATA[name];
+  if (!metadata) return { allowed: false, reason: "unknown_tool" };
+  if (!grantedCapabilities.includes(metadata.capability)) {
+    return { allowed: false, reason: "capability_denied", capability: metadata.capability };
+  }
+  if (metadata.requiresConfirmation && !confirmationProvided) {
+    return { allowed: false, reason: "confirmation_required" };
+  }
+  return { allowed: true };
+}
+
 const TOOL_DEFINITIONS = [
   {
     name: "get_memories",
@@ -159,6 +207,18 @@ function getToolDefinitions() {
     description: tool.description,
     parameters: tool.parameters
   }));
+}
+
+function getToolMetadata(name) {
+  return TOOL_OPERATION_METADATA[name] || null;
+}
+
+function getCapabilitiesCatalog() {
+  return {
+    capabilities: CAPABILITY_CATALOG,
+    tools: TOOL_OPERATION_METADATA,
+    enforcement: "catalog-only"
+  };
 }
 
 function getToolByName(name) {
@@ -454,5 +514,8 @@ async function executeTool(name, args, { env, userId }) {
 export {
   getToolDefinitions,
   getToolByName,
+  getToolMetadata,
+  getCapabilitiesCatalog,
+  authorizeTool,
   executeTool
 };
