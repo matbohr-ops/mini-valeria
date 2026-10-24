@@ -1466,7 +1466,7 @@
             else localStorage.removeItem(PROJECT_STORAGE_KEY);
             activeProjectEl.textContent = activeProjectId ? "Proyecto: " + activeProjectName : "";
             activeProjectEl.classList.toggle("visible", !!activeProjectId);
-            exitProjectEl.classList.toggle("visible", !!activeProjectId);
+            if (exitProjectEl) { exitProjectEl.style.display = activeProjectId ? "block" : "none"; }
 
             chatEl.innerHTML = "";
             (data.history || []).forEach(function (turn) {
@@ -1502,7 +1502,7 @@
     else localStorage.removeItem(PROJECT_STORAGE_KEY);
     activeProjectEl.textContent = activeProjectId ? "Proyecto: " + activeProjectName : "";
     activeProjectEl.classList.toggle("visible", !!activeProjectId);
-    exitProjectEl.classList.toggle("visible", !!activeProjectId);
+    if (exitProjectEl) { exitProjectEl.style.display = activeProjectId ? "block" : "none"; }
     updateConversationStatus();
     chatEl.innerHTML = "";
     inputEl.value = "";
@@ -1755,7 +1755,7 @@
 
     activeProjectEl.textContent = activeProjectId ? "Proyecto: " + activeProjectName : "";
     activeProjectEl.classList.toggle("visible", !!activeProjectId);
-    exitProjectEl.classList.toggle("visible", !!activeProjectId);
+    if (exitProjectEl) { exitProjectEl.style.display = activeProjectId ? "block" : "none"; }
     chatEl.innerHTML = "";
     inputEl.value = "";
     autoResize();
@@ -2091,17 +2091,15 @@
   const formEl = document.getElementById("composer-form");
   const inputEl = document.getElementById("message-input");
 
-  const documentsBtnEl = document.createElement("button");
-  documentsBtnEl.type = "button"; documentsBtnEl.className = "documents-btn"; documentsBtnEl.textContent = "Información del proyecto";
-  documentsBtnEl.addEventListener("click", openDocumentsPanel);
-  document.querySelector("footer.composer").prepend(documentsBtnEl);
+  const documentsBtnEl = document.getElementById("documents-btn");
+  if (documentsBtnEl) {
+    documentsBtnEl.addEventListener("click", openDocumentsPanel);
+  }
 
-  const exitProjectEl = document.createElement("button");
-  exitProjectEl.type = "button";
-  exitProjectEl.className = "exit-project-btn";
-  exitProjectEl.textContent = "Salir del proyecto";
-  exitProjectEl.addEventListener("click", exitProject);
-  document.querySelector("footer.composer").prepend(exitProjectEl);
+  const exitProjectEl = document.getElementById("exit-project-btn");
+  if (exitProjectEl) {
+    exitProjectEl.addEventListener("click", exitProject);
+  }
 
   activeProjectEl.classList.toggle("visible", !!activeProjectId);
 
