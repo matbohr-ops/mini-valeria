@@ -1144,7 +1144,19 @@
           data.memorySuggestion && typeof data.memorySuggestion === "object"
             ? data.memorySuggestion
             : NO_MEMORY_SUGGESTION;
-        return { reply: data.reply, memorySuggestion: memorySuggestion };
+        const pendingConfirmation =
+          data.pendingConfirmation && typeof data.pendingConfirmation === "object"
+            ? data.pendingConfirmation
+            : null;
+        const delegatedAgents = Array.isArray(data.delegatedAgents)
+          ? data.delegatedAgents
+          : [];
+        return {
+          reply: data.reply,
+          memorySuggestion: memorySuggestion,
+          pendingConfirmation: pendingConfirmation,
+          delegatedAgents: delegatedAgents
+        };
       })
       .catch(function (error) {
         console.error("Error al contactar a Mini Valeria:", error);
@@ -1486,6 +1498,99 @@
           dismissBtn.disabled = false;
           saveBtn.textContent = "Guardar";
           header.textContent = "No se pudo guardar. Intenta de nuevo.";
+        });
+    });
+
+    return row;
+  }
+
+  /* ------------------------------------------------------------------
+   * CONFIRMACIÓN DE ACCIONES CRÍTICAS (V1.9-G) Y SUBAGENTES (V2.0)
+   * ------------------------------------------------------------------ */
+
+  function confirmPendingTool(pendingConfirmation) {
+    return fetch(WORKER_BASE_URL + "/confirm-tool", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: getOrCreateUserId(),
+        sessionId: getOrCreateSessionId(),
+        toolName: pendingConfirmation.toolName,
+        args: pendingConfirmation.args || {}
+      })
+    }).then(function (response) {
+      if (!response.ok) {
+        throw new Error("Respuesta HTTP no válida: " + response.status);
+      }
+      return response.json();
+    });
+  }
+
+  function appendPendingConfirmation(pendingConfirmation) {
+    if (!pendingConfirmation || !pendingConfirmation.toolName) return null;
+
+    const row = document.createElement("div");
+    row.className = "memory-suggestion";
+
+    const header = document.createElement("div");
+    header.className = "memory-suggestion-header";
+    header.textContent = "🛡️ Confirmación requerida para ejecutar acción";
+
+    const body = document.createElement("div");
+    body.className = "memory-suggestion-body";
+    body.textContent = pendingConfirmation.summary || ("Autorizar herramienta: " + pendingConfirmation.toolName);
+
+    const actions = document.createElement("div");
+    actions.className = "memory-suggestion-actions";
+
+    const confirmBtn = document.createElement("button");
+    confirmBtn.type = "button";
+    confirmBtn.className = "memory-btn memory-btn-save";
+    confirmBtn.textContent = "Autorizar y ejecutar";
+
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "memory-btn memory-btn-dismiss";
+    cancelBtn.textContent = "Cancelar";
+
+    actions.appendChild(confirmBtn);
+    actions.appendChild(cancelBtn);
+
+    row.appendChild(header);
+    row.appendChild(body);
+    row.appendChild(actions);
+    chatEl.appendChild(row);
+    scrollToBottom();
+
+    cancelBtn.addEventListener("click", function () {
+      body.textContent = "";
+      actions.remove();
+      header.textContent = "Acción cancelada por Teo.";
+      setTimeout(function () {
+        row.remove();
+      }, 1500);
+    });
+
+    confirmBtn.addEventListener("click", function () {
+      confirmBtn.disabled = true;
+      cancelBtn.disabled = true;
+      confirmBtn.textContent = "Ejecutando...";
+
+      confirmPendingTool(pendingConfirmation)
+        .then(function () {
+          body.textContent = "";
+          actions.remove();
+          header.textContent = "✅ Acción autorizada y completada.";
+          setTimeout(function () {
+            row.remove();
+          }, 1800);
+        })
+        .catch(function (error) {
+          console.error("Error al confirmar acción:", error);
+          confirmBtn.disabled = false;
+          cancelBtn.disabled = false;
+          confirmBtn.textContent = "Autorizar y ejecutar";
+          header.textContent = "No se pudo completar la acción. Intenta de nuevo.";
         });
     });
 
@@ -1928,6 +2033,9 @@
 
     if (shouldShowMemorySuggestion(result.memorySuggestion)) {
       appendMemorySuggestion(result.memorySuggestion.content);
+    }
+    if (result.pendingConfirmation && result.pendingConfirmation.toolName) {
+      appendPendingConfirmation(result.pendingConfirmation);
     }
   }
 

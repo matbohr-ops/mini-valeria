@@ -1,15 +1,14 @@
 /**
- * Mini Valeria — V1.9-E
- * Sistema de herramientas internas de lectura y escritura.
+ * Mini Valeria — V1.9-G & V2.0
+ * Sistema de herramientas internas de lectura, escritura, borrado controlado
+ * y confirmación explícita para acciones críticas.
  *
  * Este módulo NO llama a Gemini y NO decide cuándo usar una herramienta.
  * Solo define:
- * 1. el catálogo de herramientas que Gemini puede conocer;
- * 2. la validación de argumentos;
- * 3. la ejecución controlada usando el userId del servidor.
- *
- * Las herramientas de escritura solo deben ejecutarse cuando Teo haya
- * expresado explícitamente la intención de crear o guardar información.
+ * 1. el catálogo de capacidades (CAPABILITY_CATALOG) y metadatos de operación;
+ * 2. el catálogo de herramientas que Gemini y los Subagentes pueden conocer;
+ * 3. la validación de argumentos y autorización por capabilities + confirmación;
+ * 4. la ejecución controlada usando el userId y sessionId del servidor.
  */
 
 const MAX_TOOL_ARGUMENT_LENGTH = 500;
@@ -18,13 +17,17 @@ const MAX_PROJECT_NAME_LENGTH = 100;
 const MAX_PROJECT_DESCRIPTION_LENGTH = 5000;
 const MAX_DOCUMENT_NAME_LENGTH = 200;
 const MAX_DOCUMENT_CONTENT_LENGTH = 100000;
+const MAX_CONTEXT_CONTENT_LENGTH = 100000;
+const MAX_INSTRUCTIONS_CONTENT_LENGTH = 20000;
 const MAX_TOOL_RESULT_LENGTH = 60000;
 
 const CAPABILITY_CATALOG = Object.freeze({
   "memory:read": { description: "Consultar memorias persistentes." },
   "memory:write": { description: "Crear o actualizar memorias persistentes." },
+  "memory:delete": { description: "Eliminar memorias persistentes." },
   "project:read": { description: "Consultar proyectos persistentes." },
   "project:write": { description: "Crear o actualizar proyectos persistentes." },
+  "project:delete": { description: "Eliminar proyectos persistentes." },
   "document:read": { description: "Consultar documentos persistentes." },
   "document:write": { description: "Crear o actualizar documentos persistentes." },
   "document:delete": { description: "Eliminar documentos persistentes." },
@@ -51,7 +54,13 @@ const TOOL_OPERATION_METADATA = Object.freeze({
   create_document: { capability: "document:write", requiresConfirmation: false },
   update_memory: { capability: "memory:write", requiresConfirmation: false },
   update_project: { capability: "project:write", requiresConfirmation: false },
-  update_document: { capability: "document:write", requiresConfirmation: false }
+  update_document: { capability: "document:write", requiresConfirmation: false },
+  delete_memory: { capability: "memory:delete", requiresConfirmation: true },
+  delete_document: { capability: "document:delete", requiresConfirmation: true },
+  set_conversation_context: { capability: "context:write", requiresConfirmation: false },
+  clear_conversation_context: { capability: "context:delete", requiresConfirmation: false },
+  set_conversation_instructions: { capability: "instructions:write", requiresConfirmation: false },
+  clear_conversation_instructions: { capability: "instructions:delete", requiresConfirmation: false }
 });
 
 const DEFAULT_GRANTED_CAPABILITIES = Object.freeze(Object.keys(CAPABILITY_CATALOG));
@@ -63,7 +72,7 @@ function authorizeTool(name, grantedCapabilities = DEFAULT_GRANTED_CAPABILITIES,
     return { allowed: false, reason: "capability_denied", capability: metadata.capability };
   }
   if (metadata.requiresConfirmation && !confirmationProvided) {
-    return { allowed: false, reason: "confirmation_required" };
+    return { allowed: false, reason: "confirmation_required", capability: metadata.capability };
   }
   return { allowed: true };
 }
@@ -108,7 +117,7 @@ const TOOL_DEFINITIONS = [
       type: "object",
       properties: {
         projectId: { type: "string", description: "ID del proyecto o nombre exacto del proyecto." },
-        documentId: { type: "string", description: "ID del documento." }
+        documentId: { type: "string", description: "ID del documento o nombre exacto del documento." }
       },
       required: ["projectId", "documentId"]
     }
@@ -198,6 +207,62 @@ const TOOL_DEFINITIONS = [
       },
       required: ["projectId", "documentId"]
     }
+  },
+  {
+    name: "delete_memory",
+    description: "Elimina una memoria persistente de Teo. Requiere confirmación explícita de Teo antes de ejecutarse.",
+    parameters: {
+      type: "object",
+      properties: {
+        memoryId: { type: "string", description: "ID de la memoria que se desea eliminar." }
+      },
+      required: ["memoryId"]
+    }
+  },
+  {
+    name: "delete_document",
+    description: "Elimina un documento persistente de un proyecto. Requiere confirmación explícita de Teo antes de ejecutarse.",
+    parameters: {
+      type: "object",
+      properties: {
+        projectId: { type: "string", description: "ID del proyecto o nombre exacto del proyecto." },
+        documentId: { type: "string", description: "ID del documento o nombre exacto del documento que se desea eliminar." }
+      },
+      required: ["projectId", "documentId"]
+    }
+  },
+  {
+    name: "set_conversation_context",
+    description: "Guarda o actualiza el contexto temporal adjunto a la conversación actual.",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Nombre descriptivo del contexto temporal." },
+        content: { type: "string", description: "Contenido del contexto temporal." }
+      },
+      required: ["content"]
+    }
+  },
+  {
+    name: "clear_conversation_context",
+    description: "Quita el contexto temporal adjunto de la conversación actual.",
+    parameters: { type: "object", properties: {}, required: [] }
+  },
+  {
+    name: "set_conversation_instructions",
+    description: "Guarda o actualiza las instrucciones temporales de trabajo para la conversación actual.",
+    parameters: {
+      type: "object",
+      properties: {
+        content: { type: "string", description: "Instrucciones temporales para esta conversación." }
+      },
+      required: ["content"]
+    }
+  },
+  {
+    name: "clear_conversation_instructions",
+    description: "Quita las instrucciones temporales de la conversación actual.",
+    parameters: { type: "object", properties: {}, required: [] }
   }
 ];
 
@@ -217,7 +282,7 @@ function getCapabilitiesCatalog() {
   return {
     capabilities: CAPABILITY_CATALOG,
     tools: TOOL_OPERATION_METADATA,
-    enforcement: "catalog-only"
+    enforcement: "enforced"
   };
 }
 
@@ -257,51 +322,32 @@ function validateToolArguments(tool, args) {
     if (property.type === "string" && typeof value === "string") {
       let maxLength = MAX_TOOL_ARGUMENT_LENGTH;
 
-      if (tool.name === "save_memory" && key === "text") {
+      if ((tool.name === "save_memory" || tool.name === "update_memory") && key === "text") {
         maxLength = MAX_MEMORY_LENGTH;
       }
 
-      if (tool.name === "create_project" && key === "name") {
+      if ((tool.name === "create_project" || tool.name === "update_project") && key === "name") {
         maxLength = MAX_PROJECT_NAME_LENGTH;
       }
 
-      if (tool.name === "create_project" && key === "description") {
+      if ((tool.name === "create_project" || tool.name === "update_project") && key === "description") {
         maxLength = MAX_PROJECT_DESCRIPTION_LENGTH;
       }
 
-      if (tool.name === "create_document" && key === "name") {
+      if ((tool.name === "create_document" || tool.name === "update_document") && key === "name") {
         maxLength = MAX_DOCUMENT_NAME_LENGTH;
       }
 
-      if (
-        (tool.name === "update_document" && key === "content") ||
-        (tool.name === "create_document" && key === "content")
-      ) {
+      if ((tool.name === "create_document" || tool.name === "update_document") && key === "content") {
         maxLength = MAX_DOCUMENT_CONTENT_LENGTH;
       }
 
-      if (
-        (tool.name === "update_memory" && key === "text")
-      ) {
-        maxLength = MAX_MEMORY_LENGTH;
+      if (tool.name === "set_conversation_context" && key === "content") {
+        maxLength = MAX_CONTEXT_CONTENT_LENGTH;
       }
 
-      if (
-        (tool.name === "update_project" && key === "name")
-      ) {
-        maxLength = MAX_PROJECT_NAME_LENGTH;
-      }
-
-      if (
-        (tool.name === "update_project" && key === "description")
-      ) {
-        maxLength = MAX_PROJECT_DESCRIPTION_LENGTH;
-      }
-
-      if (
-        (tool.name === "update_document" && key === "name")
-      ) {
-        maxLength = MAX_DOCUMENT_NAME_LENGTH;
+      if (tool.name === "set_conversation_instructions" && key === "content") {
+        maxLength = MAX_INSTRUCTIONS_CONTENT_LENGTH;
       }
 
       if (value.length > maxLength) {
@@ -327,6 +373,22 @@ async function resolveProject(userStub, projectRef) {
   );
 }
 
+async function resolveDocument(userStub, projectId, documentRef) {
+  const docById = await userStub.getDocument(documentRef, projectId);
+  if (docById) return docById;
+
+  const documents = await userStub.getDocuments(projectId);
+  const normalizedRef = documentRef.trim().toLowerCase();
+
+  return (
+    documents.find(
+      (item) =>
+        typeof item.name === "string" &&
+        item.name.trim().toLowerCase() === normalizedRef
+    ) || null
+  );
+}
+
 function compactCreatedDocument(document) {
   return {
     id: document.id,
@@ -336,14 +398,46 @@ function compactCreatedDocument(document) {
   };
 }
 
-async function executeTool(name, args, { env, userId, grantedCapabilities = DEFAULT_GRANTED_CAPABILITIES, confirmationProvided = false }) {
+/**
+ * Construye una descripción amigable para mostrarle a Teo cuando una
+ * herramienta requiere su confirmación explícita antes de ejecutarse.
+ */
+function buildConfirmationSummary(name, args) {
+  switch (name) {
+    case "delete_memory":
+      return `Eliminar la memoria con ID "${args.memoryId}".`;
+    case "delete_document":
+      return `Eliminar el documento "${args.documentId}" del proyecto "${args.projectId}".`;
+    default:
+      return `Ejecutar la acción "${name}".`;
+  }
+}
+
+async function executeTool(
+  name,
+  args,
+  {
+    env,
+    userId,
+    sessionId = null,
+    grantedCapabilities = DEFAULT_GRANTED_CAPABILITIES,
+    confirmationProvided = false
+  }
+) {
   const authorization = authorizeTool(name, grantedCapabilities, confirmationProvided);
   if (!authorization.allowed) {
     if (authorization.reason === "capability_denied") {
       throw new Error(`La herramienta requiere la capability ${authorization.capability}.`);
     }
     if (authorization.reason === "confirmation_required") {
-      throw new Error("Esta herramienta requiere confirmación antes de ejecutarse.");
+      const err = new Error("Esta herramienta requiere confirmación antes de ejecutarse.");
+      err.code = "CONFIRMATION_REQUIRED";
+      err.pendingConfirmation = {
+        toolName: name,
+        args: args || {},
+        summary: buildConfirmationSummary(name, args || {})
+      };
+      throw err;
     }
     throw new Error("Herramienta no autorizada.");
   }
@@ -380,7 +474,7 @@ async function executeTool(name, args, { env, userId, grantedCapabilities = DEFA
     case "get_document": {
       const project = await resolveProject(userStub, args.projectId);
       if (!project) throw new Error("El proyecto solicitado no existe.");
-      const document = await userStub.getDocument(args.documentId, project.id);
+      const document = await resolveDocument(userStub, project.id, args.documentId);
       if (!document) throw new Error("El documento solicitado no existe.");
       return document;
     }
@@ -482,20 +576,7 @@ async function executeTool(name, args, { env, userId, grantedCapabilities = DEFA
         throw new Error("El proyecto solicitado no existe.");
       }
 
-      let document = await userStub.getDocument(args.documentId, project.id);
-
-      if (!document) {
-        const documents = await userStub.getDocuments(project.id);
-        const normalizedDocumentRef = args.documentId.trim().toLowerCase();
-
-        document =
-          documents.find(
-            (item) =>
-              typeof item.name === "string" &&
-              item.name.trim().toLowerCase() === normalizedDocumentRef
-          ) || null;
-      }
-
+      const document = await resolveDocument(userStub, project.id, args.documentId);
       if (!document) {
         throw new Error("El documento solicitado no existe.");
       }
@@ -515,6 +596,81 @@ async function executeTool(name, args, { env, userId, grantedCapabilities = DEFA
         createdAt: updated.createdAt,
         updatedAt: updated.updatedAt
       };
+    }
+
+    case "delete_memory": {
+      const deleted = await userStub.deleteMemory(args.memoryId);
+      if (!deleted) {
+        throw new Error("La memoria solicitada no existe.");
+      }
+      return { deleted: true, memory: deleted };
+    }
+
+    case "delete_document": {
+      const project = await resolveProject(userStub, args.projectId);
+      if (!project) {
+        throw new Error("El proyecto solicitado no existe.");
+      }
+
+      const document = await resolveDocument(userStub, project.id, args.documentId);
+      if (!document) {
+        throw new Error("El documento solicitado no existe.");
+      }
+
+      const deleted = await userStub.deleteDocument(document.id, project.id);
+      if (!deleted) {
+        throw new Error("No se pudo eliminar el documento.");
+      }
+
+      return {
+        deleted: true,
+        document: {
+          id: deleted.id,
+          projectId: deleted.projectId,
+          name: deleted.name
+        }
+      };
+    }
+
+    case "set_conversation_context": {
+      if (!sessionId) {
+        throw new Error("No se recibió un sessionId válido para guardar el contexto.");
+      }
+      const sessionDoId = env.CONVERSATION_SESSION.idFromName(sessionId);
+      const sessionStub = env.CONVERSATION_SESSION.get(sessionDoId);
+      return await sessionStub.saveContext(
+        args.name ? args.name.trim() : "Información adjunta",
+        args.content
+      );
+    }
+
+    case "clear_conversation_context": {
+      if (!sessionId) {
+        throw new Error("No se recibió un sessionId válido para quitar el contexto.");
+      }
+      const sessionDoId = env.CONVERSATION_SESSION.idFromName(sessionId);
+      const sessionStub = env.CONVERSATION_SESSION.get(sessionDoId);
+      await sessionStub.deleteContext();
+      return { cleared: true };
+    }
+
+    case "set_conversation_instructions": {
+      if (!sessionId) {
+        throw new Error("No se recibió un sessionId válido para guardar las instrucciones.");
+      }
+      const sessionDoId = env.CONVERSATION_SESSION.idFromName(sessionId);
+      const sessionStub = env.CONVERSATION_SESSION.get(sessionDoId);
+      return await sessionStub.saveInstructions(args.content.trim());
+    }
+
+    case "clear_conversation_instructions": {
+      if (!sessionId) {
+        throw new Error("No se recibió un sessionId válido para quitar las instrucciones.");
+      }
+      const sessionDoId = env.CONVERSATION_SESSION.idFromName(sessionId);
+      const sessionStub = env.CONVERSATION_SESSION.get(sessionDoId);
+      await sessionStub.deleteInstructions();
+      return { cleared: true };
     }
 
     default:
