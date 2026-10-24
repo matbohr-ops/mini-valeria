@@ -3,549 +3,316 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mini Valeria</title>
+<title>Mini Valeria — Cyber HUD Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg-app: #EDE9F4;
-    --bg-panel: #FFFFFF;
-    --ink: #241B2F;
-    --ink-soft: #6B6178;
-    --plum: #4B3068;
-    --plum-deep: #33204A;
-    --lilac: #D8CBEE;
-    --accent: #E8A33D;
-    --bubble-user: #4B3068;
-    --bubble-user-text: #F6F1FC;
-    --bubble-bot: #F3EFFA;
-    --bubble-bot-text: #241B2F;
-    --border-soft: #E1D8F0;
-    --focus: #E8A33D;
+    --bg-base: #06030C;
+    --glass-surface: rgba(18, 12, 32, 0.58);
+    --glass-card: rgba(26, 17, 46, 0.45);
+    --glass-card-hover: rgba(38, 25, 68, 0.65);
+    --border-glass: rgba(168, 85, 247, 0.22);
+    --border-glass-bright: rgba(192, 132, 252, 0.45);
+    --border-subtle: rgba(255, 255, 255, 0.08);
+
+    --text-primary: #F8F5FF;
+    --text-secondary: #A79BBF;
+    --text-muted: #72648A;
+
+    --neon-purple: #A855F7;
+    --neon-purple-glow: rgba(168, 85, 247, 0.35);
+    --neon-blue: #38BDF8;
+    --neon-blue-glow: rgba(56, 189, 248, 0.3);
+    --neon-red: #F43F5E;
+    --neon-red-glow: rgba(244, 63, 94, 0.35);
+    --neon-amber: #F59E0B;
+
+    --bubble-user-bg: linear-gradient(135deg, rgba(124, 58, 237, 0.6), rgba(91, 33, 182, 0.7));
+    --bubble-bot-bg: rgba(22, 14, 38, 0.65);
+    --bubble-bot-border: rgba(168, 85, 247, 0.25);
   }
 
-  * { box-sizing: border-box; }
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 
   html, body {
     height: 100%;
-    margin: 0;
-  }
-
-  body {
-    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-    background: var(--bg-app);
-    color: var(--ink);
-    display: flex;
-    justify-content: center;
-    align-items: stretch;
-    min-height: 100vh;
-  }
-
-  .app {
     width: 100%;
-    max-width: 560px;
+    overflow: hidden;
+    background: var(--bg-base);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+
+  /* Lienzo de Auras Bioluminiscentes Interactivas */
+  canvas#aurora-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* Estructura Dashboard a Pantalla Completa */
+  .dashboard-wrapper {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    padding: 16px;
+    gap: 16px;
+  }
+
+  /* Sidebar Lateral Stark */
+  aside.sidebar {
+    width: 280px;
+    background: var(--glass-surface);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+    border: 1px solid var(--border-glass);
+    border-radius: 22px;
     display: flex;
     flex-direction: column;
-    background: var(--bg-panel);
-    min-height: 100vh;
-    box-shadow: 0 0 40px rgba(51, 32, 74, 0.08);
+    padding: 20px 16px;
+    flex-shrink: 0;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 
-  @media (min-width: 640px) {
-    .app {
-      min-height: 92vh;
-      margin: 4vh 0;
-      border-radius: 20px;
-      overflow: hidden;
-    }
-  }
-
-  header.app-header {
-    background: var(--plum);
-    color: var(--bubble-user-text);
-    padding: 18px 22px;
+  .brand {
     display: flex;
     align-items: center;
     gap: 12px;
-    flex-shrink: 0;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-subtle);
   }
 
-  .avatar {
-    width: 38px;
-    height: 38px;
+  .arc-reactor-avatar {
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
-    background: var(--accent);
+    background: radial-gradient(circle at 35% 35%, #C084FC, #7E22CE 60%, #3B0764);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 600;
+    font-weight: 700;
     font-size: 15px;
-    color: var(--plum-deep);
-    flex-shrink: 0;
+    color: #FFFFFF;
+    box-shadow: 0 0 22px var(--neon-purple-glow), inset 0 0 8px rgba(255,255,255,0.6);
+    position: relative;
+    border: 1.5px solid rgba(255,255,255,0.4);
+    animation: arcPulse 4s ease-in-out infinite alternate;
   }
 
-  .header-text h1 {
-    margin: 0;
+  @keyframes arcPulse {
+    0% { box-shadow: 0 0 14px var(--neon-purple-glow), inset 0 0 6px rgba(255,255,255,0.4); }
+    100% { box-shadow: 0 0 28px rgba(56, 189, 248, 0.6), inset 0 0 12px rgba(255,255,255,0.8); }
+  }
+
+  .brand-text h1 {
     font-size: 17px;
-    font-weight: 600;
-    letter-spacing: 0.2px;
-  }
-
-  .header-text p {
-    margin: 2px 0 0;
-    font-size: 12.5px;
-    color: var(--lilac);
-  }
-
-  .header-actions {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .projects-btn {
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 10px;
-    padding: 7px 10px;
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--bubble-user-text);
-    font-family: inherit;
-    font-size: 12px;
-    cursor: pointer;
-  }
-
-  .projects-btn:hover {
-    background: rgba(255, 255, 255, 0.16);
-  }
-
-  .active-project {
-    display: none;
-    margin-top: 5px;
-    font-size: 12px;
-    color: var(--accent);
-    font-weight: 600;
-  }
-
-  .active-project.visible {
-    display: block;
-  }
-
-  .projects-panel {
-    position: fixed;
-    inset: 0;
-    background: rgba(36, 27, 47, 0.35);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 18px;
-    z-index: 10;
-  }
-
-  .projects-panel.open {
-    display: flex;
-  }
-
-  .projects-card {
-    width: min(100%, 480px);
-    max-height: 82vh;
-    overflow-y: auto;
-    background: var(--bg-panel);
-    border-radius: 18px;
-    padding: 20px;
-    box-shadow: 0 18px 50px rgba(51, 32, 74, 0.22);
-  }
-
-  .projects-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-
-  .projects-card h2 {
-    margin: 0;
-    font-size: 18px;
-  }
-
-  .projects-close {
-    border: none;
-    background: transparent;
-    color: var(--ink-soft);
-    font-size: 22px;
-    cursor: pointer;
-  }
-
-  .new-project-btn {
-    width: 100%;
-    border: none;
-    border-radius: 11px;
-    padding: 10px 12px;
-    background: var(--plum);
-    color: var(--bubble-user-text);
-    font-family: inherit;
-    cursor: pointer;
-    margin-bottom: 14px;
-  }
-
-  .project-form {
-    display: none;
-    flex-direction: column;
-    gap: 9px;
-    margin-bottom: 16px;
-    padding: 14px;
-    border: 1px solid var(--border-soft);
-    border-radius: 13px;
-    background: var(--bg-app);
-  }
-
-  .project-form.open {
-    display: flex;
-  }
-
-  .project-form label {
-    font-size: 12px;
-    color: var(--ink-soft);
-  }
-
-  .project-form input,
-  .project-form textarea {
-    width: 100%;
-    border: 1px solid var(--border-soft);
-    border-radius: 10px;
-    padding: 9px 10px;
-    font: inherit;
-    color: var(--ink);
-    background: var(--bg-panel);
-  }
-
-  .project-form textarea {
-    resize: vertical;
-    min-height: 70px;
-  }
-
-  .project-form-actions {
-    display: flex;
-    gap: 8px;
-  }
-
-  .project-form-actions button {
-    flex: 1;
-    border: none;
-    border-radius: 10px;
-    padding: 9px 10px;
-    font-family: inherit;
-    cursor: pointer;
-  }
-
-  .project-cancel {
-    background: transparent;
-    color: var(--ink-soft);
-    border: 1px solid var(--border-soft) !important;
-  }
-
-  .project-list {
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
-  }
-
-  .project-item {
-    width: 100%;
-    text-align: left;
-    border: 1px solid var(--border-soft);
-    border-radius: 12px;
-    background: var(--bg-panel);
-    padding: 11px 12px;
-    cursor: pointer;
-  }
-
-  .project-item:hover {
-    background: var(--bg-app);
-  }
-
-  .project-item-name {
-    font-weight: 600;
-    font-size: 14px;
-  }
-
-  .project-item-description {
-    margin-top: 3px;
-    color: var(--ink-soft);
-    font-size: 12.5px;
-    line-height: 1.4;
-  }
-
-  .project-empty {
-    color: var(--ink-soft);
-    font-size: 13px;
-    text-align: center;
-    padding: 12px 4px;
-  }
-
-  .exit-project-btn {
-    display: none;
-    width: 100%;
-    border: 1px solid var(--border-soft);
-    border-radius: 10px;
-    padding: 8px 10px;
-    background: transparent;
-    color: var(--ink-soft);
-    font-family: inherit;
-    cursor: pointer;
-    margin-bottom: 12px;
-  }
-
-  .exit-project-btn.visible {
-    display: block;
-  }
-
-  .documents-btn { width: 100%; border: 1px solid var(--border-soft); border-radius: 10px; padding: 8px 10px; background: transparent; color: var(--plum); font-family: inherit; cursor: pointer; margin-bottom: 12px; }
-  .documents-btn:hover { background: var(--bg-app); }
-  .documents-panel { position: fixed; inset: 0; background: rgba(36, 27, 47, 0.35); display: none; align-items: center; justify-content: center; padding: 18px; z-index: 11; }
-  .documents-panel.open { display: flex; }
-  .documents-card { width: min(100%, 520px); max-height: 86vh; overflow-y: auto; background: var(--bg-panel); border-radius: 18px; padding: 20px; box-shadow: 0 18px 50px rgba(51, 32, 74, 0.22); }
-  .documents-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
-  .documents-card h2 { margin: 0; font-size: 18px; }
-  .documents-subtitle { margin: 3px 0 0; color: var(--ink-soft); font-size: 12.5px; }
-  .document-form { display: none; flex-direction: column; gap: 9px; margin-bottom: 16px; padding: 14px; border: 1px solid var(--border-soft); border-radius: 13px; background: var(--bg-app); }
-  .document-form.open { display: flex; }
-  .document-form label { font-size: 12px; color: var(--ink-soft); }
-  .document-form input, .document-form textarea { width: 100%; border: 1px solid var(--border-soft); border-radius: 10px; padding: 9px 10px; font: inherit; color: var(--ink); background: var(--bg-panel); }
-  .document-form textarea { min-height: 180px; resize: vertical; line-height: 1.45; }
-  .document-form-actions { display: flex; gap: 8px; }
-  .document-form-actions button { flex: 1; border: none; border-radius: 10px; padding: 9px 10px; font-family: inherit; cursor: pointer; }
-  .document-list { display: flex; flex-direction: column; gap: 9px; }
-  .document-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; border: 1px solid var(--border-soft); border-radius: 12px; padding: 10px 12px; background: var(--bg-panel); }
-  .document-item-main { min-width: 0; flex: 1; cursor: pointer; }
-  .document-item-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
-  .document-item-meta { margin-top: 3px; color: var(--ink-soft); font-size: 11.5px; }
-  .document-item-actions { display: flex; gap: 6px; flex-shrink: 0; }
-  .document-action { border: 1px solid var(--border-soft); border-radius: 8px; padding: 6px 8px; background: transparent; color: var(--ink-soft); font-family: inherit; font-size: 12px; cursor: pointer; }
-  .document-action:hover { background: var(--bg-app); }
-  .document-action-delete { color: #8A4050; }
-  .document-view { display: none; margin-top: 14px; border: 1px solid var(--border-soft); border-radius: 12px; overflow: hidden; }
-  .document-view.open { display: block; }
-  .document-view-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg-app); border-bottom: 1px solid var(--border-soft); }
-  .document-view-title { font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
-  .document-content { margin: 0; padding: 14px; max-height: 320px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 12.5px/1.5 Consolas, "Courier New", monospace; background: var(--bg-panel); }
-  .context-btn { width: 100%; border: 1px solid var(--border-soft); border-radius: 10px; padding: 8px 10px; background: transparent; color: var(--plum); font-family: inherit; cursor: pointer; margin-bottom: 12px; }
-  .context-btn:hover { background: var(--bg-app); }
-  .instructions-btn { width: 100%; border: 1px solid var(--border-soft); border-radius: 10px; padding: 8px 10px; background: transparent; color: var(--plum); font-family: inherit; cursor: pointer; margin-bottom: 12px; }
-  .instructions-btn:hover { background: var(--bg-app); }
-  .instructions-panel { position: fixed; inset: 0; background: rgba(36, 27, 47, 0.35); display: none; align-items: center; justify-content: center; padding: 18px; z-index: 13; }
-  .instructions-panel.open { display: flex; }
-  .instructions-card { width: min(100%, 520px); max-height: 86vh; overflow-y: auto; background: var(--bg-panel); border-radius: 18px; padding: 20px; box-shadow: 0 18px 50px rgba(51, 32, 74, 0.22); }
-  .instructions-card h2 { margin: 0; font-size: 18px; }
-  .instructions-subtitle { margin: 5px 0 14px; color: var(--ink-soft); font-size: 12.5px; line-height: 1.4; }
-  .instructions-card textarea { width: 100%; min-height: 220px; resize: vertical; border: 1px solid var(--border-soft); border-radius: 10px; padding: 9px 10px; font: inherit; color: var(--ink); background: var(--bg-panel); line-height: 1.45; }
-  .instructions-actions { display: flex; gap: 8px; margin-top: 10px; }
-  .instructions-actions button { flex: 1; border: none; border-radius: 10px; padding: 9px 10px; font-family: inherit; cursor: pointer; }
-  .instructions-status { margin-top: 9px; color: var(--ink-soft); font-size: 12px; }
-  .context-panel { position: fixed; inset: 0; background: rgba(36, 27, 47, 0.35); display: none; align-items: center; justify-content: center; padding: 18px; z-index: 12; }
-  .context-panel.open { display: flex; }
-  .context-card { width: min(100%, 520px); max-height: 86vh; overflow-y: auto; background: var(--bg-panel); border-radius: 18px; padding: 20px; box-shadow: 0 18px 50px rgba(51, 32, 74, 0.22); }
-  .context-card h2 { margin: 0; font-size: 18px; }
-  .context-subtitle { margin: 5px 0 14px; color: var(--ink-soft); font-size: 12.5px; line-height: 1.4; }
-  .context-card input, .context-card textarea { width: 100%; border: 1px solid var(--border-soft); border-radius: 10px; padding: 9px 10px; font: inherit; color: var(--ink); background: var(--bg-panel); }
-  .context-card textarea { min-height: 220px; resize: vertical; line-height: 1.45; }
-  .context-actions { display: flex; gap: 8px; margin-top: 10px; }
-  .context-actions button { flex: 1; border: none; border-radius: 10px; padding: 9px 10px; font-family: inherit; cursor: pointer; }
-  .context-status { margin-top: 9px; color: var(--ink-soft); font-size: 12px; }
-
-  .conversations-btn {
-    border: 1px solid rgba(255, 255, 255, 0.25);
-    border-radius: 10px;
-    padding: 7px 10px;
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--bubble-user-text);
-    font-family: inherit;
-    font-size: 12px;
-    cursor: pointer;
-  }
-
-  .conversations-btn:hover { background: rgba(255, 255, 255, 0.16); }
-
-  .conversations-panel {
-    position: fixed;
-    inset: 0;
-    background: rgba(36, 27, 47, 0.35);
-    display: none;
-    align-items: center;
-    justify-content: center;
-    padding: 18px;
-    z-index: 14;
-  }
-
-  .conversations-panel.open { display: flex; }
-
-  .conversations-card {
-    width: min(100%, 480px);
-    max-height: 82vh;
-    overflow-y: auto;
-    background: var(--bg-panel);
-    border-radius: 18px;
-    padding: 20px;
-    box-shadow: 0 18px 50px rgba(51, 32, 74, 0.22);
-  }
-
-  .conversation-list {
-    display: flex;
-    flex-direction: column;
-    gap: 9px;
-  }
-
-  .conversation-item-row {
-    display: flex;
-    align-items: stretch;
-    gap: 8px;
-  }
-
-  .conversation-item {
-    flex: 1;
-    min-width: 0;
-    text-align: left;
-    border: 1px solid var(--border-soft);
-    border-radius: 12px;
-    background: var(--bg-panel);
-    padding: 11px 12px;
-    cursor: pointer;
-  }
-
-  .conversation-item:hover { background: var(--bg-app); }
-  .conversation-item.active { border-color: var(--accent); background: var(--bg-app); }
-  .conversation-item-name { font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
-  .conversation-item-meta { margin-top: 3px; color: var(--ink-soft); font-size: 11.5px; }
-
-
-  .conversation-edit-btn {
-    flex-shrink: 0; width: 42px; border: 1px solid var(--border-soft); border-radius: 12px;
-    background: var(--bg-panel); color: var(--ink-soft); font-family: inherit; font-size: 15px; cursor: pointer;
-  }
-  .conversation-edit-btn:hover { background: var(--bg-app); color: var(--plum); border-color: var(--lilac); }
-
-  .conversation-delete-btn {
-    flex-shrink: 0;
-    width: 42px;
-    border: 1px solid var(--border-soft);
-    border-radius: 12px;
-    background: var(--bg-panel);
-    color: var(--ink-soft);
-    font-family: inherit;
-    font-size: 16px;
-    cursor: pointer;
-  }
-
-  .conversation-delete-btn:hover {
-    background: #F9EEF1;
-    color: #8A4050;
-    border-color: #D9B5BF;
-  }
-
-  .new-conversation-btn {
-    width: 100%;
-    border: none;
-    border-radius: 11px;
-    padding: 10px 12px;
-    background: var(--plum);
-    color: var(--bubble-user-text);
-    font-family: inherit;
-    cursor: pointer;
-    margin-bottom: 14px;
-  }
-
-  .conversation-status {
-    display: flex !important;
-    align-items: center;
-    gap: 8px;
-    min-height: 34px;
-    width: 100%;
-    padding: 7px 16px;
-    background: #FAF8FC;
-    border-bottom: 1px solid var(--border-soft);
-    color: var(--ink-soft);
-    font-size: 11.5px;
-    flex-shrink: 0;
-    visibility: visible !important;
-  }
-
-  .conversation-status-label {
-    font-weight: 600;
-    color: var(--plum);
-    flex-shrink: 0;
-  }
-
-  .conversation-status-items {
+    font-weight: 700;
+    letter-spacing: -0.2px;
+    color: #FFFFFF;
     display: flex;
     align-items: center;
     gap: 6px;
+  }
+
+  .badge-v2 {
+    font-size: 10px;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 999px;
+    background: rgba(168, 85, 247, 0.25);
+    color: #D8B4FE;
+    border: 1px solid rgba(168, 85, 247, 0.4);
+    letter-spacing: 0.5px;
+  }
+
+  .brand-text p {
+    font-size: 12px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 3px;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #34D399;
+    box-shadow: 0 0 10px #34D399;
+  }
+
+  .sidebar-section-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin: 20px 0 10px 4px;
+    font-weight: 600;
+  }
+
+  .sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .sidebar-btn {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    background: var(--glass-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 11px 14px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    text-align: left;
+  }
+
+  .sidebar-btn:hover {
+    background: var(--glass-card-hover);
+    border-color: var(--border-glass-bright);
+    box-shadow: 0 4px 20px rgba(168, 85, 247, 0.15);
+    transform: translateY(-1px);
+    color: #FFFFFF;
+  }
+
+  .sidebar-btn svg {
+    width: 17px;
+    height: 17px;
+    color: var(--neon-purple);
+    flex-shrink: 0;
+  }
+
+  .sidebar-footer {
+    margin-top: auto;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  .active-project-badge {
+    display: none;
+    background: rgba(168, 85, 247, 0.12);
+    border: 1px solid rgba(168, 85, 247, 0.3);
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #E9D5FF;
+    margin-bottom: 8px;
+    word-break: break-all;
+  }
+
+  .active-project-badge.visible {
+    display: block;
+  }
+
+  /* Etapa Principal (Main Stage) */
+  main.main-stage {
+    flex: 1;
+    background: var(--glass-surface);
+    backdrop-filter: blur(28px);
+    -webkit-backdrop-filter: blur(28px);
+    border: 1px solid var(--border-glass);
+    border-radius: 22px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  }
+
+  /* Barra Superior de Estado y Subagentes */
+  header.top-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border-subtle);
+    background: rgba(10, 6, 20, 0.3);
+    font-size: 12.5px;
+    flex-shrink: 0;
+  }
+
+  .status-chips-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     flex-wrap: wrap;
   }
 
-  .conversation-status-chip {
+  .status-chip {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    border: 1px solid var(--border-soft);
+    gap: 6px;
+    padding: 4px 10px;
     border-radius: 999px;
-    padding: 3px 8px;
-    background: var(--bg-panel);
-    white-space: nowrap;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    font-size: 12px;
   }
 
-  .conversation-status-chip::before {
+  .status-chip.active {
+    background: rgba(56, 189, 248, 0.1);
+    border-color: rgba(56, 189, 248, 0.3);
+    color: #BAE6FD;
+  }
+
+  .status-chip.active::before {
     content: "";
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--ink-soft);
+    background: var(--neon-blue);
+    box-shadow: 0 0 8px var(--neon-blue);
   }
 
-  .conversation-status-chip.active::before {
-    background: var(--accent);
-  }
-
-  .conversation-status-chip.active {
-    color: var(--plum);
-    border-color: var(--lilac);
-  }
-
-  .conversation-status-empty {
-    color: var(--ink-soft);
-  }
-
-  @media (max-width: 420px) {
-    .conversation-status {
-      align-items: flex-start;
-      flex-direction: column;
-      gap: 3px;
-      padding-top: 6px;
-      padding-bottom: 6px;
-    }
-  }
-
-  .status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #7BD68A;
-    display: inline-block;
-    margin-right: 6px;
-  }
-
-  main.chat {
+  /* Área de Mensajes del Chat */
+  .chat-scroll-area {
     flex: 1;
     overflow-y: auto;
-    padding: 20px 18px;
+    padding: 24px 32px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
-    background: var(--bg-panel);
+    gap: 18px;
+    align-items: center;
+  }
+
+  .chat-container {
+    width: 100%;
+    max-width: 880px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
   }
 
   .msg-row {
     display: flex;
     flex-direction: column;
     max-width: 82%;
+    animation: fadeInMsg 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes fadeInMsg {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   .msg-row.user {
@@ -559,116 +326,234 @@
   }
 
   .msg-label {
-    font-size: 11px;
-    color: var(--ink-soft);
-    margin: 0 4px 4px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    margin: 0 4px 5px;
+    font-weight: 500;
   }
 
   .bubble {
-    padding: 11px 15px;
-    border-radius: 16px;
+    padding: 13px 18px;
+    border-radius: 18px;
     font-size: 14.5px;
-    line-height: 1.45;
+    line-height: 1.55;
     word-wrap: break-word;
+    letter-spacing: -0.1px;
   }
 
   .msg-row.user .bubble {
-    background: var(--bubble-user);
-    color: var(--bubble-user-text);
+    background: var(--bubble-user-bg);
+    color: #FFFFFF;
     border-bottom-right-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 6px 20px rgba(124, 58, 237, 0.25);
   }
 
   .msg-row.bot .bubble {
-    background: var(--bubble-bot);
-    color: var(--bubble-bot-text);
+    background: var(--bubble-bot-bg);
+    color: #F1EDFA;
     border-bottom-left-radius: 4px;
+    border: 1px solid var(--bubble-bot-border);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
   }
 
+  /* Tarjeta de Sugerencia de Memoria y Confirmación (V1.9-G) */
+  .memory-suggestion {
+    width: 100%;
+    max-width: 880px;
+    background: rgba(26, 17, 46, 0.7);
+    border: 1px solid var(--border-glass-bright);
+    border-radius: 16px;
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    backdrop-filter: blur(16px);
+    box-shadow: 0 8px 32px rgba(168, 85, 247, 0.15);
+  }
+
+  .memory-suggestion-header {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #D8B4FE;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .memory-suggestion-body {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+  }
+
+  .memory-suggestion-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+
+  .memory-btn {
+    border: none;
+    border-radius: 10px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.2s ease;
+  }
+
+  .memory-btn-save {
+    background: linear-gradient(135deg, #A855F7, #7C3AED);
+    color: #FFFFFF;
+    box-shadow: 0 4px 14px var(--neon-purple-glow);
+  }
+
+  .memory-btn-save:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(168, 85, 247, 0.5);
+  }
+
+  .memory-btn-dismiss {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .memory-btn-dismiss:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #FFFFFF;
+  }
+
+  /* Indicador de escritura pulsante */
   .typing-indicator .bubble {
     display: flex;
-    gap: 4px;
+    gap: 5px;
     align-items: center;
-    padding: 13px 16px;
+    padding: 15px 20px;
   }
 
   .typing-indicator .dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--ink-soft);
-    opacity: 0.5;
-    animation: bounce 1.2s infinite ease-in-out;
+    background: var(--neon-purple);
+    opacity: 0.6;
+    animation: typingBounce 1.2s infinite ease-in-out;
   }
 
   .typing-indicator .dot:nth-child(2) { animation-delay: 0.15s; }
   .typing-indicator .dot:nth-child(3) { animation-delay: 0.3s; }
 
-  @keyframes bounce {
-    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
-    30% { transform: translateY(-4px); opacity: 1; }
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+    30% { transform: translateY(-5px); opacity: 1; box-shadow: 0 0 8px var(--neon-purple); }
   }
 
-  footer.composer {
+  /* Barra de Entrada Aerodinámica (Composer) */
+  footer.composer-panel {
+    padding: 16px 24px;
+    background: rgba(14, 9, 26, 0.45);
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
     flex-shrink: 0;
-    padding: 14px 16px;
-    background: var(--bg-panel);
-    border-top: 1px solid var(--border-soft);
+  }
+
+  .composer-wrapper {
+    width: 100%;
+    max-width: 880px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .quick-tools-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .hud-pill-btn {
+    background: var(--glass-card);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all 0.15s ease;
+  }
+
+  .hud-pill-btn:hover {
+    background: var(--glass-card-hover);
+    color: #FFFFFF;
+    border-color: var(--border-glass-bright);
   }
 
   form.input-row {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     align-items: flex-end;
+    background: rgba(22, 14, 40, 0.6);
+    border: 1px solid var(--border-glass);
+    border-radius: 16px;
+    padding: 8px 12px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    transition: all 0.2s ease;
+  }
+
+  form.input-row:focus-within {
+    border-color: var(--neon-purple);
+    box-shadow: 0 0 25px var(--neon-purple-glow);
   }
 
   textarea#message-input {
     flex: 1;
     resize: none;
-    max-height: 120px;
-    min-height: 44px;
-    padding: 11px 14px;
-    border-radius: 14px;
-    border: 1px solid var(--border-soft);
-    background: var(--bg-app);
-    color: var(--ink);
+    max-height: 140px;
+    min-height: 42px;
+    padding: 9px 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
     font-family: inherit;
     font-size: 14.5px;
-    line-height: 1.4;
+    line-height: 1.5;
     outline: none;
   }
 
-  textarea#message-input:focus {
-    border-color: var(--focus);
-    box-shadow: 0 0 0 3px rgba(232, 163, 61, 0.18);
+  textarea#message-input::placeholder {
+    color: var(--text-muted);
   }
 
   button#send-btn {
-    flex-shrink: 0;
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
     border: none;
-    background: var(--plum);
-    color: var(--bubble-user-text);
+    background: linear-gradient(135deg, #A855F7, #7C3AED);
+    color: #FFFFFF;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.15s ease, transform 0.1s ease;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 16px var(--neon-purple-glow);
+    flex-shrink: 0;
   }
 
   button#send-btn:hover {
-    background: var(--plum-deep);
-  }
-
-  button#send-btn:active {
-    transform: scale(0.94);
-  }
-
-  button#send-btn:focus-visible,
-  textarea#message-input:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: 2px;
+    transform: scale(1.05);
+    box-shadow: 0 6px 24px rgba(168, 85, 247, 0.6);
   }
 
   button#send-btn svg {
@@ -676,223 +561,459 @@
     height: 18px;
   }
 
-  main.chat::-webkit-scrollbar {
-    width: 6px;
-  }
-  main.chat::-webkit-scrollbar-thumb {
-    background: var(--lilac);
-    border-radius: 3px;
+  /* Modales y Paneles Flotantes Cyber-Glass */
+  .projects-panel, .conversations-panel, .documents-panel, .context-panel, .instructions-panel {
+    position: fixed;
+    inset: 0;
+    background: rgba(6, 3, 12, 0.65);
+    backdrop-filter: blur(16px);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 100;
   }
 
-  .memory-suggestion {
-    align-self: stretch;
-    background: var(--bubble-bot);
-    border: 1px solid var(--lilac);
-    border-radius: 14px;
-    padding: 12px 14px;
+  .projects-panel.open, .conversations-panel.open, .documents-panel.open, .context-panel.open, .instructions-panel.open {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
   }
 
-  .memory-suggestion-header {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--plum);
+  .projects-card, .conversations-card, .documents-card, .context-card, .instructions-card {
+    width: min(100%, 540px);
+    max-height: 84vh;
+    overflow-y: auto;
+    background: rgba(22, 14, 40, 0.88);
+    border: 1px solid var(--border-glass-bright);
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6), 0 0 40px rgba(168, 85, 247, 0.2);
+    backdrop-filter: blur(28px);
+    color: var(--text-primary);
   }
 
-  .memory-suggestion-body {
-    font-size: 14px;
-    line-height: 1.45;
-    color: var(--ink);
-  }
-
-  .memory-suggestion-actions {
+  .projects-card-header, .documents-card-header {
     display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 12px;
   }
 
-  .memory-btn {
+  .projects-card-header h2, .documents-card-header h2 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #FFFFFF;
+  }
+
+  .projects-close {
+    background: transparent;
     border: none;
-    border-radius: 10px;
-    padding: 7px 14px;
-    font-size: 13px;
+    color: var(--text-muted);
+    font-size: 24px;
+    cursor: pointer;
+    line-height: 1;
+  }
+
+  .projects-close:hover {
+    color: #FFFFFF;
+  }
+
+  .new-project-btn, .new-conversation-btn {
+    width: 100%;
+    background: linear-gradient(135deg, #9333EA, #7C3AED);
+    border: none;
+    border-radius: 12px;
+    padding: 12px;
+    color: #FFFFFF;
+    font-weight: 600;
+    font-size: 13.5px;
     font-family: inherit;
     cursor: pointer;
-    transition: background 0.15s ease, opacity 0.15s ease;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 16px var(--neon-purple-glow);
   }
 
-  .memory-btn:disabled {
-    cursor: default;
-    opacity: 0.6;
+  .new-project-btn:hover, .new-conversation-btn:hover {
+    box-shadow: 0 6px 24px rgba(147, 51, 234, 0.5);
   }
 
-  .memory-btn-save {
-    background: var(--plum);
-    color: var(--bubble-user-text);
+  .project-item, .conversation-item, .document-item {
+    background: var(--glass-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 12px;
+    padding: 12px 14px;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
   }
 
-  .memory-btn-save:hover:not(:disabled) {
-    background: var(--plum-deep);
+  .project-item:hover, .conversation-item:hover, .document-item:hover {
+    background: var(--glass-card-hover);
+    border-color: var(--border-glass-bright);
   }
 
-  .memory-btn-dismiss {
+  .project-item-name, .conversation-item-name, .document-item-name {
+    font-weight: 600;
+    font-size: 14px;
+    color: #FFFFFF;
+  }
+
+  .project-item-description, .conversation-item-meta, .document-item-meta {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+  }
+
+  .conversation-item-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .conversation-edit-btn, .conversation-delete-btn, .document-action {
+    background: var(--glass-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0 12px;
+  }
+
+  .conversation-delete-btn:hover, .document-action-delete:hover {
+    background: rgba(244, 63, 94, 0.15);
+    border-color: var(--neon-red);
+    color: var(--neon-red);
+  }
+
+  input, textarea {
+    background: rgba(14, 9, 26, 0.6) !important;
+    border: 1px solid var(--border-glass) !important;
+    color: var(--text-primary) !important;
+    border-radius: 10px !important;
+    padding: 10px !important;
+    font-family: inherit !important;
+  }
+
+  input:focus, textarea:focus {
+    border-color: var(--neon-purple) !important;
+    outline: none !important;
+    box-shadow: 0 0 16px var(--neon-purple-glow) !important;
+  }
+
+  /* Scrollbar estético oscuro */
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
     background: transparent;
-    color: var(--ink-soft);
-    border: 1px solid var(--border-soft);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(168, 85, 247, 0.25);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(168, 85, 247, 0.45);
   }
 
-  .memory-btn-dismiss:hover:not(:disabled) {
-    background: var(--bg-app);
-  }
-
-  @media (max-width: 380px) {
-    .memory-suggestion-actions {
+  /* Responsive para pantallas compactas */
+  @media (max-width: 860px) {
+    .dashboard-wrapper {
       flex-direction: column;
+      padding: 8px;
     }
-    .memory-btn {
+    aside.sidebar {
       width: 100%;
+      height: auto;
+      padding: 14px;
     }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .typing-indicator .dot {
-      animation: none;
+    .sidebar-nav {
+      flex-direction: row;
+      flex-wrap: wrap;
+    }
+    .sidebar-btn {
+      flex: 1;
+      min-width: 120px;
     }
   }
 </style>
 </head>
 <body>
 
-<div class="app">
-  <header class="app-header">
-    <div class="avatar">MV</div>
-    <div class="header-text">
-      <h1>Mini Valeria</h1>
-      <p><span class="status-dot"></span>Lista para conversar</p>
-      <div class="active-project" id="active-project"></div>
-    </div>
-    <div class="header-actions">
-      <button class="conversations-btn" id="conversations-btn" type="button">Conversaciones</button>
-      <button class="projects-btn" id="projects-btn" type="button">Proyectos</button>
-    </div>
-  </header>
+<!-- Lienzo de Auras Bioluminiscentes -->
+<canvas id="aurora-canvas"></canvas>
 
-  <div class="conversation-status" id="conversation-status" aria-label="Estado de la conversación">
-    <span class="conversation-status-label">Estado de la conversación</span>
-    <div class="conversation-status-items" id="conversation-status-items">Sin contexto temporal ni instrucciones</div>
-  </div>
+<div class="dashboard-wrapper">
 
-  <div class="conversations-panel" id="conversations-panel" aria-hidden="true">
-    <div class="conversations-card" role="dialog" aria-modal="true" aria-labelledby="conversations-title">
-      <div class="projects-card-header">
-        <h2 id="conversations-title">Conversaciones</h2>
-        <button class="projects-close" id="conversations-close" type="button" aria-label="Cerrar">×</button>
+  <!-- Sidebar Lateral Stark -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="arc-reactor-avatar">MV</div>
+      <div class="brand-text">
+        <h1>Mini Valeria <span class="badge-v2">V2.0 HUD</span></h1>
+        <p><span class="status-dot"></span>Orquestadora activa</p>
       </div>
-      <button class="new-conversation-btn" id="new-conversation-btn" type="button">+ Nueva conversación</button>
-      <div class="conversation-list" id="conversation-list"></div>
     </div>
-  </div>
 
-  <div class="projects-panel" id="projects-panel" aria-hidden="true">
-    <div class="projects-card" role="dialog" aria-modal="true" aria-labelledby="projects-title">
-      <div class="projects-card-header">
-        <h2 id="projects-title">Proyectos</h2>
-        <button class="projects-close" id="projects-close" type="button" aria-label="Cerrar">×</button>
-      </div>
-      <button class="new-project-btn" id="new-project-btn" type="button">+ Nuevo proyecto</button>
-
-      <form class="project-form" id="project-form">
-        <label for="project-name">Nombre</label>
-        <input id="project-name" type="text" maxlength="120" required>
-        <label for="project-description">Descripción</label>
-        <textarea id="project-description" maxlength="500"></textarea>
-        <div class="project-form-actions">
-          <button class="project-cancel" id="project-cancel" type="button">Cancelar</button>
-          <button type="submit" style="background: var(--plum); color: var(--bubble-user-text);">Crear</button>
-        </div>
-      </form>
-
-      <div class="project-list" id="project-list"></div>
-    </div>
-  </div>
-
-  <div class="documents-panel" id="documents-panel" aria-hidden="true">
-    <div class="documents-card" role="dialog" aria-modal="true" aria-labelledby="documents-title">
-      <div class="documents-card-header">
-        <div><h2 id="documents-title">Información del proyecto</h2><div class="documents-subtitle" id="documents-subtitle">Selecciona un proyecto para gestionar su información.</div></div>
-        <button class="projects-close" id="documents-close" type="button" aria-label="Cerrar">×</button>
-      </div>
-      <button class="new-project-btn" id="new-document-btn" type="button">+ Agregar información</button>
-      <form class="document-form" id="document-form">
-        <label for="document-name">Nombre</label>
-        <input id="document-name" type="text" maxlength="160" required placeholder="Ej. Arquitectura, notas, código...">
-        <label for="document-content">Contenido</label>
-        <textarea id="document-content" required placeholder="Pega aquí texto, código, Markdown, JSON, especificaciones, notas, etc."></textarea>
-        <div class="document-form-actions"><button class="project-cancel" id="document-cancel" type="button">Cancelar</button><button type="submit" style="background: var(--plum); color: var(--bubble-user-text);">Guardar</button></div>
-      </form>
-      <div class="document-list" id="document-list"></div>
-      <div class="document-view" id="document-view"><div class="document-view-header"><div class="document-view-title" id="document-view-title"></div><button class="document-action" id="document-view-close" type="button">Cerrar</button></div><pre class="document-content" id="document-view-content"></pre></div>
-    </div>
-  </div>
-
-  <main class="chat" id="chat" aria-live="polite">
-  </main>
-
-  <footer class="composer">
-    <button class="context-btn" id="context-btn" type="button">Adjuntar información</button>
-    <button class="instructions-btn" id="instructions-btn" type="button">Instrucciones</button>
-    <form class="input-row" id="composer-form">
-      <textarea
-        id="message-input"
-        placeholder="Escribe un mensaje..."
-        rows="1"
-        aria-label="Escribe un mensaje para Mini Valeria"
-      ></textarea>
-      <button id="send-btn" type="button" aria-label="Enviar mensaje">
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M4 20L20.5 12L4 4L4 9.5L15 12L4 14.5L4 20Z" fill="currentColor"/>
-        </svg>
+    <div class="sidebar-section-title">Comando Central</div>
+    <div class="sidebar-nav">
+      <button class="sidebar-btn" id="new-conversation-quick-btn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        Nueva conversación
       </button>
-    </form>
-  </footer>
+      <button class="sidebar-btn" id="conversations-btn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Conversaciones
+      </button>
+      <button class="sidebar-btn" id="projects-btn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        Proyectos
+      </button>
+    </div>
+
+    <div class="sidebar-section-title">Subagentes Activos (V2.0)</div>
+    <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-secondary);">
+      <div style="display: flex; align-items: center; gap: 6px;">🧠 Curador de Memoria</div>
+      <div style="display: flex; align-items: center; gap: 6px;">📂 Gestor de Proyectos</div>
+      <div style="display: flex; align-items: center; gap: 6px;">⚙️ Operador de Sesión</div>
+      <div style="display: flex; align-items: center; gap: 6px;">🧭 Consejero Estratégico</div>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="active-project-badge" id="active-project"></div>
+      <button class="hud-pill-btn" id="exit-project-btn" style="display: none; width: 100%; border-color: var(--neon-red); color: #FDA4AF;" type="button">
+        Salir del proyecto
+      </button>
+    </div>
+  </aside>
+
+  <!-- Etapa Principal de Chat -->
+  <main class="main-stage">
+    
+    <!-- Barra Superior de Estado -->
+    <header class="top-status-bar" id="conversation-status">
+      <div class="status-chips-wrap" id="conversation-status-items">
+        <span class="status-chip active">Orquestador listo</span>
+        <span class="status-chip">Sin contexto temporal</span>
+      </div>
+      <div style="color: var(--text-muted); font-size: 12px;">Cyber HUD · Tony Stark Lab</div>
+    </header>
+
+    <!-- Área de Mensajes del Chat -->
+    <div class="chat-scroll-area">
+      <div class="chat-container" id="chat" aria-live="polite">
+        <!-- Los mensajes se inyectan dinámicamente aquí -->
+      </div>
+    </div>
+
+    <!-- Barra de Entrada Inferior (Composer) -->
+    <footer class="composer-panel">
+      <div class="composer-wrapper">
+        <div class="quick-tools-row">
+          <button class="hud-pill-btn" id="documents-btn" type="button">📄 Info del proyecto</button>
+          <button class="hud-pill-btn" id="context-btn" type="button">📎 Adjuntar contexto</button>
+          <button class="hud-pill-btn" id="instructions-btn" type="button">⚙️ Instrucciones</button>
+        </div>
+
+        <form class="input-row" id="composer-form">
+          <textarea
+            id="message-input"
+            placeholder="Pregúntale a Mini Valeria o pídele que delegue en sus subagentes..."
+            rows="1"
+            aria-label="Mensaje para Mini Valeria"
+          ></textarea>
+          <button id="send-btn" type="button" aria-label="Enviar">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M4 20L20.5 12L4 4L4 9.5L15 12L4 14.5L4 20Z" fill="currentColor"/>
+            </svg>
+          </button>
+        </form>
+      </div>
+    </footer>
+
+  </main>
 </div>
 
-  <div class="context-panel" id="context-panel" aria-hidden="true">
-    <div class="context-card" role="dialog" aria-modal="true" aria-labelledby="context-title">
-      <div class="documents-card-header">
-        <div><h2 id="context-title">Adjuntar información</h2><div class="context-subtitle">Añade texto, código, Markdown, JSON o notas para que Mini Valeria lo tenga en cuenta durante esta conversación. No se guardará como documento del proyecto.</div></div>
-        <button class="projects-close" id="context-close" type="button" aria-label="Cerrar">×</button>
-      </div>
-      <input id="context-name" type="text" maxlength="160" placeholder="Nombre opcional, ej. Código actual">
-      <textarea id="context-content" placeholder="Pega aquí la información que quieres que Mini Valeria use en esta conversación..."></textarea>
-      <div class="context-actions"><button class="project-cancel" id="context-cancel" type="button">Cancelar</button><button id="context-clear" type="button" style="background: transparent; color: var(--ink-soft); border: 1px solid var(--border-soft);">Quitar</button><button id="context-save" type="button" style="background: var(--plum); color: var(--bubble-user-text);">Adjuntar</button></div>
-      <div class="context-status" id="context-status"></div>
+<!-- Modales Existentes (Mismos IDs preservados al 100%) -->
+<div class="conversations-panel" id="conversations-panel" aria-hidden="true">
+  <div class="conversations-card" role="dialog" aria-modal="true">
+    <div class="projects-card-header">
+      <h2>Conversaciones</h2>
+      <button class="projects-close" id="conversations-close" type="button">×</button>
     </div>
+    <button class="new-conversation-btn" id="new-conversation-btn" type="button">+ Nueva conversación</button>
+    <div class="conversation-list" id="conversation-list"></div>
   </div>
+</div>
 
-  <div class="instructions-panel" id="instructions-panel" aria-hidden="true">
-    <div class="instructions-card" role="dialog" aria-modal="true" aria-labelledby="instructions-title">
-      <div class="documents-card-header">
-        <div>
-          <h2 id="instructions-title">Instrucciones</h2>
-          <div class="instructions-subtitle">
-            Define cómo quieres que Mini Valeria trabaje durante esta conversación.
-            Estas instrucciones son temporales y no se guardarán como memoria.
-          </div>
-        </div>
-        <button class="projects-close" id="instructions-close" type="button" aria-label="Cerrar">×</button>
+<div class="projects-panel" id="projects-panel" aria-hidden="true">
+  <div class="projects-card" role="dialog" aria-modal="true">
+    <div class="projects-card-header">
+      <h2>Proyectos</h2>
+      <button class="projects-close" id="projects-close" type="button">×</button>
+    </div>
+    <button class="new-project-btn" id="new-project-btn" type="button">+ Nuevo proyecto</button>
+    <form class="project-form" id="project-form" style="display: none; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+      <label for="project-name" style="font-size: 12px; color: var(--text-secondary);">Nombre</label>
+      <input id="project-name" type="text" maxlength="120" required>
+      <label for="project-description" style="font-size: 12px; color: var(--text-secondary);">Descripción</label>
+      <textarea id="project-description" maxlength="500"></textarea>
+      <div style="display: flex; gap: 8px;">
+        <button class="hud-pill-btn" id="project-cancel" type="button" style="flex: 1;">Cancelar</button>
+        <button type="submit" class="new-project-btn" style="flex: 1; margin: 0;">Crear</button>
       </div>
-      <textarea id="instructions-content" placeholder="Ej. Explícame el código paso a paso, no asumas conocimientos avanzados y sé breve."></textarea>
-      <div class="instructions-actions">
-        <button class="project-cancel" id="instructions-cancel" type="button">Cancelar</button>
-        <button id="instructions-clear" type="button" style="background: transparent; color: var(--ink-soft); border: 1px solid var(--border-soft);">Quitar</button>
-        <button id="instructions-save" type="button" style="background: var(--plum); color: var(--bubble-user-text);">Guardar instrucciones</button>
+    </form>
+    <div class="project-list" id="project-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
+  </div>
+</div>
+
+<div class="documents-panel" id="documents-panel" aria-hidden="true">
+  <div class="documents-card" role="dialog" aria-modal="true">
+    <div class="documents-card-header">
+      <div>
+        <h2>Información del proyecto</h2>
+        <div id="documents-subtitle" style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;"></div>
       </div>
-      <div class="instructions-status" id="instructions-status"></div>
+      <button class="projects-close" id="documents-close" type="button">×</button>
+    </div>
+    <button class="new-project-btn" id="new-document-btn" type="button">+ Agregar información</button>
+    <form id="document-form" style="display: none; flex-direction: column; gap: 10px; margin-bottom: 16px;">
+      <label for="document-name" style="font-size: 12px; color: var(--text-secondary);">Nombre</label>
+      <input id="document-name" type="text" maxlength="160" required placeholder="Ej. Arquitectura, notas, especificaciones...">
+      <label for="document-content" style="font-size: 12px; color: var(--text-secondary);">Contenido</label>
+      <textarea id="document-content" required style="min-height: 160px;"></textarea>
+      <div style="display: flex; gap: 8px;">
+        <button class="hud-pill-btn" id="document-cancel" type="button" style="flex: 1;">Cancelar</button>
+        <button type="submit" class="new-project-btn" style="flex: 1; margin: 0;">Guardar</button>
+      </div>
+    </form>
+    <div id="document-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
+    <div id="document-view" style="display: none; margin-top: 16px; border: 1px solid var(--border-glass); border-radius: 12px; overflow: hidden;">
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; background: rgba(14, 9, 26, 0.6); border-bottom: 1px solid var(--border-subtle);">
+        <div id="document-view-title" style="font-weight: 600; font-size: 13px;"></div>
+        <button class="hud-pill-btn" id="document-view-close" type="button">Cerrar</button>
+      </div>
+      <pre id="document-view-content" style="margin: 0; padding: 14px; max-height: 300px; overflow: auto; white-space: pre-wrap; font-size: 13px; font-family: monospace;"></pre>
     </div>
   </div>
+</div>
+
+<div class="context-panel" id="context-panel" aria-hidden="true">
+  <div class="context-card" role="dialog" aria-modal="true">
+    <div class="documents-card-header">
+      <div>
+        <h2>Adjuntar información temporal</h2>
+        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Información viva para esta conversación específica.</div>
+      </div>
+      <button class="projects-close" id="context-close" type="button">×</button>
+    </div>
+    <input id="context-name" type="text" maxlength="160" placeholder="Nombre opcional, ej. Código actual">
+    <textarea id="context-content" placeholder="Pega aquí el texto, JSON o código..." style="min-height: 180px; margin-top: 10px; width: 100%;"></textarea>
+    <div style="display: flex; gap: 8px; margin-top: 14px;">
+      <button class="hud-pill-btn" id="context-cancel" type="button" style="flex: 1;">Cancelar</button>
+      <button class="hud-pill-btn" id="context-clear" type="button" style="flex: 1; border-color: var(--neon-red); color: #FDA4AF;">Quitar</button>
+      <button class="new-project-btn" id="context-save" type="button" style="flex: 1; margin: 0;">Adjuntar</button>
+    </div>
+    <div id="context-status" style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);"></div>
+  </div>
+</div>
+
+<div class="instructions-panel" id="instructions-panel" aria-hidden="true">
+  <div class="instructions-card" role="dialog" aria-modal="true">
+    <div class="documents-card-header">
+      <div>
+        <h2>Instrucciones temporales</h2>
+        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Cómo debe comportarse Mini Valeria en esta conversación.</div>
+      </div>
+      <button class="projects-close" id="instructions-close" type="button">×</button>
+    </div>
+    <textarea id="instructions-content" placeholder="Ej. Responde siempre con código directo, sin introducciones largas..." style="min-height: 180px; width: 100%;"></textarea>
+    <div style="display: flex; gap: 8px; margin-top: 14px;">
+      <button class="hud-pill-btn" id="instructions-cancel" type="button" style="flex: 1;">Cancelar</button>
+      <button class="hud-pill-btn" id="instructions-clear" type="button" style="flex: 1; border-color: var(--neon-red); color: #FDA4AF;">Quitar</button>
+      <button class="new-project-btn" id="instructions-save" type="button" style="flex: 1; margin: 0;">Guardar</button>
+    </div>
+    <div id="instructions-status" style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);"></div>
+  </div>
+</div>
+
+<!-- Motor de Auras Bioluminiscentes (Canvas Script) -->
+<script>
+(function initAuroraCanvas() {
+  const canvas = document.getElementById("aurora-canvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+
+  let width = (canvas.width = window.innerWidth);
+  let height = (canvas.height = window.innerHeight);
+
+  window.addEventListener("resize", () => {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+  });
+
+  // 4 Orbes bioluminiscentes (morado profundo, azul cobalto, violeta eléctrico y toque carmesí sutil)
+  const orbs = [
+    { x: width * 0.2, y: height * 0.3, radius: 360, vx: 0.3, vy: 0.25, color: "rgba(139, 92, 246, 0.28)" }, // Morado
+    { x: width * 0.8, y: height * 0.4, radius: 420, vx: -0.25, vy: 0.3, color: "rgba(56, 189, 248, 0.22)" },  // Azul
+    { x: width * 0.5, y: height * 0.75, radius: 380, vx: 0.2, vy: -0.2, color: "rgba(168, 85, 247, 0.25)" },  // Violeta
+    { x: width * 0.3, y: height * 0.8, radius: 300, vx: -0.15, vy: -0.18, color: "rgba(244, 63, 94, 0.12)" }  // Carmesí sutil
+  ];
+
+  let mouseX = width / 2;
+  let mouseY = height / 2;
+
+  window.addEventListener("pointermove", (e) => {
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+  });
+
+  function render() {
+    ctx.clearRect(0, 0, width, height);
+
+    // Fondo base degradado oscuro
+    const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+    bgGrad.addColorStop(0, "#080512");
+    bgGrad.addColorStop(1, "#040209");
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, width, height);
+
+    // Dibujar orbes con fusión compuesta de luz
+    ctx.globalCompositeOperation = "screen";
+
+    orbs.forEach((orb, i) => {
+      orb.x += orb.vx;
+      orb.y += orb.vy;
+
+      if (orb.x < -100 || orb.x > width + 100) orb.vx *= -1;
+      if (orb.y < -100 || orb.y > height + 100) orb.vy *= -1;
+
+      // Reacción sutil al cursor
+      const dx = mouseX - orb.x;
+      const dy = mouseY - orb.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 400 && i === 0) {
+        orb.x += dx * 0.005;
+        orb.y += dy * 0.005;
+      }
+
+      const grad = ctx.createRadialGradient(orb.x, orb.y, 0, orb.x, orb.y, orb.radius);
+      grad.addColorStop(0, orb.color);
+      grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(orb.x, orb.y, orb.radius, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    ctx.globalCompositeOperation = "source-over";
+    requestAnimationFrame(render);
+  }
+
+  render();
+})();
+</script>
 
 <script>
 (function () {
@@ -1393,7 +1514,13 @@
 
   document.getElementById("conversations-btn").addEventListener("click", openConversationsPanel);
   document.getElementById("conversations-close").addEventListener("click", closeConversationsPanel);
-  document.getElementById("new-conversation-btn").addEventListener("click", function () {
+  const quickNewBtn = document.getElementById("new-conversation-quick-btn");
+    if (quickNewBtn) {
+      quickNewBtn.addEventListener("click", function () {
+        createConversationOnServer(null, null).catch(console.error);
+      });
+    }
+    document.getElementById("new-conversation-btn").addEventListener("click", function () {
     createConversationOnServer(null, null).catch(function (error) {
       console.error(error);
       alert("No se pudo crear una conversación nueva.");
