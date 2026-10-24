@@ -1019,11 +1019,44 @@
 (function () {
   "use strict";
 
+  /* Polyfill seguro para entornos iframe / sandbox de Antigravity */
+  const memoryStore = {};
+  const safeSessionStorage = {
+    getItem: function(k) {
+      try { return window.safeSessionStorage ? window.safeSessionStorage.getItem(k) : memoryStore[k] || null; }
+      catch(e) { return memoryStore[k] || null; }
+    },
+    setItem: function(k, v) {
+      try { if (window.safeSessionStorage) window.safeSessionStorage.setItem(k, v); else memoryStore[k] = String(v); }
+      catch(e) { memoryStore[k] = String(v); }
+    },
+    removeItem: function(k) {
+      try { if (window.safeSessionStorage) window.safeSessionStorage.removeItem(k); else delete memoryStore[k]; }
+      catch(e) { delete memoryStore[k]; }
+    }
+  };
+
+  const safeLocalStorage = {
+    getItem: function(k) {
+      try { return window.safeLocalStorage ? window.safeLocalStorage.getItem(k) : memoryStore[k] || null; }
+      catch(e) { return memoryStore[k] || null; }
+    },
+    setItem: function(k, v) {
+      try { if (window.safeLocalStorage) window.safeLocalStorage.setItem(k, v); else memoryStore[k] = String(v); }
+      catch(e) { memoryStore[k] = String(v); }
+    },
+    removeItem: function(k) {
+      try { if (window.safeLocalStorage) window.safeLocalStorage.removeItem(k); else delete memoryStore[k]; }
+      catch(e) { delete memoryStore[k]; }
+    }
+  };
+
+
   /* ------------------------------------------------------------------
    * SESIÓN (sessionId)
    * ------------------------------------------------------------------
    * Identificador de la conversación actual. Se genera una sola vez por
-   * pestaña/sesión de navegador y se guarda en sessionStorage:
+   * pestaña/sesión de navegador y se guarda en safeSessionStorage:
    * - Sobrevive a una recarga (F5) de la página.
    * - Se pierde al cerrar la pestaña (una nueva apertura empieza una
    *   sesión nueva).
@@ -1051,10 +1084,10 @@
   }
 
   function getOrCreateSessionId() {
-    let sessionId = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    let sessionId = safeSessionStorage.getItem(SESSION_STORAGE_KEY);
     if (!sessionId) {
       sessionId = generateUUID();
-      sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+      safeSessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
     }
     return sessionId;
   }
@@ -1062,9 +1095,9 @@
   /* ------------------------------------------------------------------
    * IDENTIDAD (userId) — V1.3
    * ------------------------------------------------------------------
-   * A diferencia del sessionId (una conversación puntual, sessionStorage,
+   * A diferencia del sessionId (una conversación puntual, safeSessionStorage,
    * se pierde al cerrar la pestaña), el userId identifica a Teo de forma
-   * estable en este navegador: vive en localStorage, así que sobrevive
+   * estable en este navegador: vive en safeLocalStorage, así que sobrevive
    * al cierre y reapertura de la pestaña/navegador. Todavía NO es login
    * ni una cuenta real — es solo la identidad local que separa "memoria
    * global de Teo" de "historial de esta conversación puntual".
@@ -1072,14 +1105,14 @@
 
   const USER_STORAGE_KEY = "miniValeriaUserId";
 
-  let activeProjectId = localStorage.getItem(PROJECT_STORAGE_KEY) || null;
+  let activeProjectId = safeLocalStorage.getItem(PROJECT_STORAGE_KEY) || null;
   let activeProjectName = null;
 
   function getOrCreateUserId() {
-    let userId = localStorage.getItem(USER_STORAGE_KEY);
+    let userId = safeLocalStorage.getItem(USER_STORAGE_KEY);
     if (!userId) {
       userId = generateUUID();
-      localStorage.setItem(USER_STORAGE_KEY, userId);
+      safeLocalStorage.setItem(USER_STORAGE_KEY, userId);
     }
     return userId;
   }
@@ -1213,7 +1246,7 @@
   const NO_MEMORY_SUGGESTION = { shouldSuggest: false, content: null };
 
   function ensureConversationRegistered(firstMessage) {
-    if (sessionStorage.getItem(CONVERSATION_REGISTERED_KEY) === "true") return Promise.resolve();
+    if (safeSessionStorage.getItem(CONVERSATION_REGISTERED_KEY) === "true") return Promise.resolve();
     const userId = getOrCreateUserId();
     const sessionId = getOrCreateSessionId();
     const name = firstMessage.trim().replace(/\s+/g, " ").slice(0, 60) || "Nueva conversación";
@@ -1230,7 +1263,7 @@
       if (!response.ok) throw new Error("No se pudo registrar la conversación: " + response.status);
       return response.json();
     }).then(function () {
-      sessionStorage.setItem(CONVERSATION_REGISTERED_KEY, "true");
+      safeSessionStorage.setItem(CONVERSATION_REGISTERED_KEY, "true");
     });
   }
 
@@ -1451,10 +1484,10 @@
       })
       .then(function (data) {
         const conversation = data.conversation;
-        sessionStorage.setItem(SESSION_STORAGE_KEY, conversation.sessionId);
-        sessionStorage.setItem(CONVERSATION_REGISTERED_KEY, "true");
-        sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
-        sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
+        safeSessionStorage.setItem(SESSION_STORAGE_KEY, conversation.sessionId);
+        safeSessionStorage.setItem(CONVERSATION_REGISTERED_KEY, "true");
+        safeSessionStorage.removeItem(CONTEXT_STORAGE_KEY);
+        safeSessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
         updateConversationStatus();
         activeProjectId = conversation.projectId || null;
         return fetch(WORKER_BASE_URL + "/projects?userId=" + encodeURIComponent(getOrCreateUserId()))
@@ -1462,8 +1495,8 @@
           .then(function (projectsData) {
             const project = (projectsData.projects || []).find(function (p) { return p.id === activeProjectId; });
             activeProjectName = project ? project.name : null;
-            if (activeProjectId) localStorage.setItem(PROJECT_STORAGE_KEY, activeProjectId);
-            else localStorage.removeItem(PROJECT_STORAGE_KEY);
+            if (activeProjectId) safeLocalStorage.setItem(PROJECT_STORAGE_KEY, activeProjectId);
+            else safeLocalStorage.removeItem(PROJECT_STORAGE_KEY);
             activeProjectEl.textContent = activeProjectId ? "Proyecto: " + activeProjectName : "";
             activeProjectEl.classList.toggle("visible", !!activeProjectId);
             if (exitProjectEl) { exitProjectEl.style.display = activeProjectId ? "block" : "none"; }
@@ -1473,8 +1506,8 @@
               appendMessage(turn.role === "user" ? "user" : "bot", turn.text);
             });
 
-            if (data.context) sessionStorage.setItem(CONTEXT_STORAGE_KEY, "true");
-            if (data.instructions) sessionStorage.setItem(INSTRUCTIONS_STORAGE_KEY, "true");
+            if (data.context) safeSessionStorage.setItem(CONTEXT_STORAGE_KEY, "true");
+            if (data.instructions) safeSessionStorage.setItem(INSTRUCTIONS_STORAGE_KEY, "true");
             updateContextButton();
             updateInstructionsButton();
             updateConversationStatus();
@@ -1492,14 +1525,14 @@
 
   function createConversationOnServer(projectId, projectName) {
     const sessionId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-" + Math.random().toString(16).slice(2);
-    sessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
-    sessionStorage.removeItem(CONVERSATION_REGISTERED_KEY);
-    sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
-    sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
+    safeSessionStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+    safeSessionStorage.removeItem(CONVERSATION_REGISTERED_KEY);
+    safeSessionStorage.removeItem(CONTEXT_STORAGE_KEY);
+    safeSessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
     activeProjectId = projectId || null;
     activeProjectName = projectName || null;
-    if (activeProjectId) localStorage.setItem(PROJECT_STORAGE_KEY, activeProjectId);
-    else localStorage.removeItem(PROJECT_STORAGE_KEY);
+    if (activeProjectId) safeLocalStorage.setItem(PROJECT_STORAGE_KEY, activeProjectId);
+    else safeLocalStorage.removeItem(PROJECT_STORAGE_KEY);
     activeProjectEl.textContent = activeProjectId ? "Proyecto: " + activeProjectName : "";
     activeProjectEl.classList.toggle("visible", !!activeProjectId);
     if (exitProjectEl) { exitProjectEl.style.display = activeProjectId ? "block" : "none"; }
@@ -1741,16 +1774,16 @@
       alert("No se pudo iniciar la conversación.");
     });
     return;
-    sessionStorage.setItem(SESSION_STORAGE_KEY, generateUUID());
-    sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
-    sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
+    safeSessionStorage.setItem(SESSION_STORAGE_KEY, generateUUID());
+    safeSessionStorage.removeItem(CONTEXT_STORAGE_KEY);
+    safeSessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
     activeProjectId = projectId || null;
     activeProjectName = projectName || null;
 
     if (activeProjectId) {
-      localStorage.setItem(PROJECT_STORAGE_KEY, activeProjectId);
+      safeLocalStorage.setItem(PROJECT_STORAGE_KEY, activeProjectId);
     } else {
-      localStorage.removeItem(PROJECT_STORAGE_KEY);
+      safeLocalStorage.removeItem(PROJECT_STORAGE_KEY);
     }
 
     activeProjectEl.textContent = activeProjectId ? "Proyecto: " + activeProjectName : "";
@@ -1929,7 +1962,7 @@
   function clearConversationContextFromUI() {
     clearConversationContext()
       .then(function () {
-        sessionStorage.removeItem(CONTEXT_STORAGE_KEY);
+        safeSessionStorage.removeItem(CONTEXT_STORAGE_KEY);
         contextNameEl.value = "";
         contextContentEl.value = "";
         updateContextButton();
@@ -1947,8 +1980,8 @@
     if (!statusItemsEl) return;
 
     statusItemsEl.innerHTML = "";
-    const hasContext = sessionStorage.getItem(CONTEXT_STORAGE_KEY) === "true";
-    const hasInstructions = sessionStorage.getItem(INSTRUCTIONS_STORAGE_KEY) === "true";
+    const hasContext = safeSessionStorage.getItem(CONTEXT_STORAGE_KEY) === "true";
+    const hasInstructions = safeSessionStorage.getItem(INSTRUCTIONS_STORAGE_KEY) === "true";
     const items = [];
 
     if (activeProjectId) {
@@ -1977,13 +2010,13 @@
   }
 
   function updateContextButton() {
-    const hasContext = sessionStorage.getItem(CONTEXT_STORAGE_KEY) === "true";
+    const hasContext = safeSessionStorage.getItem(CONTEXT_STORAGE_KEY) === "true";
     document.getElementById("context-btn").textContent = hasContext ? "Información adjunta · Gestionar" : "Adjuntar información";
   }
   function attachConversationContext() {
     const name = contextNameEl.value.trim(); const content = contextContentEl.value; if (!content.trim()) return;
     contextSaveBtn.disabled = true; contextSaveBtn.textContent = "Adjuntando...";
-    saveConversationContext(name, content).then(function () { sessionStorage.setItem(CONTEXT_STORAGE_KEY, "true"); contextNameEl.value = ""; contextContentEl.value = ""; closeContextPanel(); updateContextButton(); updateConversationStatus(); }).catch(function (error) { console.error("Error al adjuntar contexto:", error); contextStatusEl.textContent = "No se pudo adjuntar la información. Intenta de nuevo."; }).finally(function () { contextSaveBtn.disabled = false; contextSaveBtn.textContent = "Adjuntar"; });
+    saveConversationContext(name, content).then(function () { safeSessionStorage.setItem(CONTEXT_STORAGE_KEY, "true"); contextNameEl.value = ""; contextContentEl.value = ""; closeContextPanel(); updateContextButton(); updateConversationStatus(); }).catch(function (error) { console.error("Error al adjuntar contexto:", error); contextStatusEl.textContent = "No se pudo adjuntar la información. Intenta de nuevo."; }).finally(function () { contextSaveBtn.disabled = false; contextSaveBtn.textContent = "Adjuntar"; });
   }
 
   /* ------------------------------------------------------------------
@@ -2039,7 +2072,7 @@
   function clearConversationInstructionsFromUI() {
     clearConversationInstructions()
       .then(function () {
-        sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
+        safeSessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
         instructionsContentEl.value = "";
         updateInstructionsButton();
         updateConversationStatus();
@@ -2053,7 +2086,7 @@
 
   function updateInstructionsButton() {
     const hasInstructions =
-      sessionStorage.getItem(INSTRUCTIONS_STORAGE_KEY) === "true";
+      safeSessionStorage.getItem(INSTRUCTIONS_STORAGE_KEY) === "true";
     document.getElementById("instructions-btn").textContent =
       hasInstructions ? "Instrucciones · Gestionar" : "Instrucciones";
   }
@@ -2067,7 +2100,7 @@
 
     saveConversationInstructions(content)
       .then(function () {
-        sessionStorage.setItem(INSTRUCTIONS_STORAGE_KEY, "true");
+        safeSessionStorage.setItem(INSTRUCTIONS_STORAGE_KEY, "true");
         closeInstructionsPanel();
         updateInstructionsButton();
         updateConversationStatus();
@@ -2176,9 +2209,9 @@
   document.getElementById("send-btn").addEventListener("click", handleSend);
 
   document.getElementById("context-btn").addEventListener("click", function () {
-    if (sessionStorage.getItem(CONTEXT_STORAGE_KEY) === "true") {
+    if (safeSessionStorage.getItem(CONTEXT_STORAGE_KEY) === "true") {
       if (confirm("Ya hay información adjunta a esta conversación. ¿Quieres reemplazarla?")) {
-        clearConversationContext().then(function () { sessionStorage.removeItem(CONTEXT_STORAGE_KEY); updateContextButton(); openContextPanel(); }).catch(function (error) { console.error(error); alert("No se pudo reemplazar la información."); });
+        clearConversationContext().then(function () { safeSessionStorage.removeItem(CONTEXT_STORAGE_KEY); updateContextButton(); openContextPanel(); }).catch(function (error) { console.error(error); alert("No se pudo reemplazar la información."); });
       }
     } else { openContextPanel(); }
   });
@@ -2186,7 +2219,7 @@
   document.getElementById("context-cancel").addEventListener("click", closeContextPanel);
   contextSaveBtn.addEventListener("click", attachConversationContext);
   document.getElementById("context-clear").addEventListener("click", function () {
-    if (sessionStorage.getItem(CONTEXT_STORAGE_KEY) !== "true") {
+    if (safeSessionStorage.getItem(CONTEXT_STORAGE_KEY) !== "true") {
       closeContextPanel();
       return;
     }
@@ -2199,10 +2232,10 @@
   updateConversationStatus();
 
   document.getElementById("instructions-btn").addEventListener("click", function () {
-    if (sessionStorage.getItem(INSTRUCTIONS_STORAGE_KEY) === "true") {
+    if (safeSessionStorage.getItem(INSTRUCTIONS_STORAGE_KEY) === "true") {
       clearConversationInstructions()
         .then(function () {
-          sessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
+          safeSessionStorage.removeItem(INSTRUCTIONS_STORAGE_KEY);
           instructionsContentEl.value = "";
           updateInstructionsButton();
           updateConversationStatus();
@@ -2221,7 +2254,7 @@
   document.getElementById("instructions-cancel").addEventListener("click", closeInstructionsPanel);
   instructionsSaveBtn.addEventListener("click", attachConversationInstructions);
   document.getElementById("instructions-clear").addEventListener("click", function () {
-    if (sessionStorage.getItem(INSTRUCTIONS_STORAGE_KEY) !== "true") {
+    if (safeSessionStorage.getItem(INSTRUCTIONS_STORAGE_KEY) !== "true") {
       closeInstructionsPanel();
       return;
     }
