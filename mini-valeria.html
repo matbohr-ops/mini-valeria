@@ -562,7 +562,7 @@
   }
 
   /* Modales y Paneles Flotantes Cyber-Glass */
-  .projects-panel, .conversations-panel, .documents-panel, .context-panel, .instructions-panel {
+  .projects-panel, .conversations-panel, .documents-panel, .context-panel, .instructions-panel, .cronos-panel {
     position: fixed;
     inset: 0;
     background: rgba(6, 3, 12, 0.65);
@@ -574,12 +574,12 @@
     z-index: 100;
   }
 
-  .projects-panel.open, .conversations-panel.open, .documents-panel.open, .context-panel.open, .instructions-panel.open {
+  .projects-panel.open, .conversations-panel.open, .documents-panel.open, .context-panel.open, .instructions-panel.open, .cronos-panel.open {
     display: flex;
   }
 
-  .projects-card, .conversations-card, .documents-card, .context-card, .instructions-card {
-    width: min(100%, 540px);
+  .projects-card, .conversations-card, .documents-card, .context-card, .instructions-card, .cronos-card {
+    width: min(100%, 580px);
     max-height: 84vh;
     overflow-y: auto;
     background: rgba(22, 14, 40, 0.88);
@@ -590,6 +590,45 @@
     backdrop-filter: blur(28px);
     color: var(--text-primary);
   }
+
+  .cronos-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+
+  .cronos-tab-btn {
+    flex: 1;
+    padding: 10px 14px;
+    background: rgba(18, 12, 34, 0.65);
+    border: 1px solid var(--border-subtle);
+    border-radius: 10px;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .cronos-tab-btn.active {
+    background: rgba(168, 85, 247, 0.22);
+    border-color: var(--neon-purple);
+    color: #FFFFFF;
+    box-shadow: 0 0 14px rgba(168, 85, 247, 0.25);
+  }
+
+  .priority-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .priority-low { background: rgba(56, 189, 248, 0.15); color: #7DD3FC; border: 1px solid rgba(56, 189, 248, 0.35); }
+  .priority-medium { background: rgba(168, 85, 247, 0.18); color: #D8B4FE; border: 1px solid rgba(168, 85, 247, 0.4); }
+  .priority-high { background: rgba(251, 146, 60, 0.18); color: #FDBA74; border: 1px solid rgba(251, 146, 60, 0.4); }
+  .priority-urgent { background: rgba(244, 63, 94, 0.22); color: #FDA4AF; border: 1px solid rgba(244, 63, 94, 0.5); }
 
   .projects-card-header, .documents-card-header {
     display: flex;
@@ -784,14 +823,19 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
         Proyectos
       </button>
+      <button class="sidebar-btn" id="cronos-btn" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Agenda & Tareas (Cronos)
+      </button>
     </div>
 
-    <div class="sidebar-section-title">Subagentes Activos (V2.0)</div>
+    <div class="sidebar-section-title">Subagentes Activos (V2.1)</div>
     <div style="display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--text-secondary);">
       <div style="display: flex; align-items: center; gap: 6px;">🧠 Curador de Memoria</div>
       <div style="display: flex; align-items: center; gap: 6px;">📂 Gestor de Proyectos</div>
       <div style="display: flex; align-items: center; gap: 6px;">⚙️ Operador de Sesión</div>
       <div style="display: flex; align-items: center; gap: 6px;">🧭 Consejero Estratégico</div>
+      <div style="display: flex; align-items: center; gap: 6px; color: #38BDF8; font-weight: 500;">⏱️ Cronos · Agenda & Tareas</div>
     </div>
 
     <div class="sidebar-footer">
@@ -949,6 +993,83 @@
       <button class="new-project-btn" id="instructions-save" type="button" style="flex: 1; margin: 0;">Guardar</button>
     </div>
     <div id="instructions-status" style="margin-top: 8px; font-size: 12px; color: var(--text-secondary);"></div>
+  </div>
+</div>
+
+<!-- Panel de Cronos: Agenda, Calendario y Tareas (V2.1 / Paso 3) -->
+<div class="cronos-panel" id="cronos-panel" aria-hidden="true">
+  <div class="cronos-card" role="dialog" aria-modal="true">
+    <div class="documents-card-header">
+      <div>
+        <h2>⏱️ Cronos · Agenda y Tareas</h2>
+        <div style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">Sincronizado en tiempo real con Mini Valeria y el Subagente Cronos.</div>
+      </div>
+      <button class="projects-close" id="cronos-close" type="button">×</button>
+    </div>
+
+    <div class="cronos-tabs">
+      <button class="cronos-tab-btn active" id="cronos-tab-events" type="button">📅 Agenda / Eventos</button>
+      <button class="cronos-tab-btn" id="cronos-tab-tasks" type="button">✅ Tareas / Pendientes</button>
+    </div>
+
+    <!-- Sección Eventos -->
+    <div id="cronos-events-section">
+      <button class="new-project-btn" id="new-event-btn" type="button">+ Agendar nuevo evento</button>
+      <form class="project-form" id="cronos-event-form">
+        <label for="event-title" style="font-size: 12px; color: var(--text-secondary);">Título del evento</label>
+        <input id="event-title" type="text" maxlength="160" required placeholder="Ej. Reunión Shift / Demo Getincloud">
+        <div style="display: flex; gap: 8px;">
+          <div style="flex: 1;">
+            <label for="event-start" style="font-size: 12px; color: var(--text-secondary);">Inicio (Fecha y Hora)</label>
+            <input id="event-start" type="datetime-local" required style="width: 100%; margin-top: 4px;">
+          </div>
+          <div style="flex: 1;">
+            <label for="event-end" style="font-size: 12px; color: var(--text-secondary);">Fin (Opcional)</label>
+            <input id="event-end" type="datetime-local" style="width: 100%; margin-top: 4px;">
+          </div>
+        </div>
+        <label for="event-location" style="font-size: 12px; color: var(--text-secondary);">Lugar o Enlace (Opcional)</label>
+        <input id="event-location" type="text" maxlength="200" placeholder="Ej. Google Meet / Oficina">
+        <label for="event-description" style="font-size: 12px; color: var(--text-secondary);">Notas (Opcional)</label>
+        <textarea id="event-description" maxlength="1000" style="min-height: 70px;"></textarea>
+        <div style="display: flex; gap: 8px; margin-top: 6px;">
+          <button class="hud-pill-btn" id="event-cancel" type="button" style="flex: 1;">Cancelar</button>
+          <button type="submit" class="new-project-btn" style="flex: 1; margin: 0;">Guardar evento</button>
+        </div>
+      </form>
+      <div id="cronos-event-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
+    </div>
+
+    <!-- Sección Tareas -->
+    <div id="cronos-tasks-section" style="display: none;">
+      <button class="new-project-btn" id="new-task-btn" type="button">+ Nueva tarea</button>
+      <form class="project-form" id="cronos-task-form">
+        <label for="task-title" style="font-size: 12px; color: var(--text-secondary);">Título de la tarea</label>
+        <input id="task-title" type="text" maxlength="160" required placeholder="Ej. Revisar reporte con Hermes">
+        <div style="display: flex; gap: 8px;">
+          <div style="flex: 1;">
+            <label for="task-priority" style="font-size: 12px; color: var(--text-secondary);">Prioridad</label>
+            <select id="task-priority" style="width: 100%; margin-top: 4px; background: rgba(10, 6, 20, 0.8); border: 1px solid var(--border-glass); border-radius: 10px; padding: 10px; color: #fff; font-family: inherit;">
+              <option value="low">Baja (Low)</option>
+              <option value="medium" selected>Media (Medium)</option>
+              <option value="high">Alta (High)</option>
+              <option value="urgent">Urgente (Urgent)</option>
+            </select>
+          </div>
+          <div style="flex: 1;">
+            <label for="task-due" style="font-size: 12px; color: var(--text-secondary);">Fecha límite (Opcional)</label>
+            <input id="task-due" type="date" style="width: 100%; margin-top: 4px;">
+          </div>
+        </div>
+        <label for="task-description" style="font-size: 12px; color: var(--text-secondary);">Descripción (Opcional)</label>
+        <textarea id="task-description" maxlength="1000" style="min-height: 70px;"></textarea>
+        <div style="display: flex; gap: 8px; margin-top: 6px;">
+          <button class="hud-pill-btn" id="task-cancel" type="button" style="flex: 1;">Cancelar</button>
+          <button type="submit" class="new-project-btn" style="flex: 1; margin: 0;">Crear tarea</button>
+        </div>
+      </form>
+      <div id="cronos-task-list" style="display: flex; flex-direction: column; gap: 10px;"></div>
+    </div>
   </div>
 </div>
 
@@ -2413,6 +2534,358 @@
 
   projectsPanelEl.addEventListener("click", function (event) {
     if (event.target === projectsPanelEl) closeProjectsPanel();
+  });
+
+  /* ------------------------------------------------------------------
+   * CRONOS — PANEL DE AGENDA, CALENDARIO Y TAREAS (V2.1 / Paso 3)
+   * ------------------------------------------------------------------ */
+
+  const cronosPanelEl = document.getElementById("cronos-panel");
+  const cronosTabEventsBtn = document.getElementById("cronos-tab-events");
+  const cronosTabTasksBtn = document.getElementById("cronos-tab-tasks");
+  const cronosEventsSection = document.getElementById("cronos-events-section");
+  const cronosTasksSection = document.getElementById("cronos-tasks-section");
+  const cronosEventFormEl = document.getElementById("cronos-event-form");
+  const cronosTaskFormEl = document.getElementById("cronos-task-form");
+  const cronosEventListEl = document.getElementById("cronos-event-list");
+  const cronosTaskListEl = document.getElementById("cronos-task-list");
+
+  function openCronosPanel() {
+    cronosPanelEl.classList.add("open");
+    cronosPanelEl.setAttribute("aria-hidden", "false");
+    loadCronosEvents();
+    loadCronosTasks();
+  }
+
+  function closeCronosPanel() {
+    cronosPanelEl.classList.remove("open");
+    cronosPanelEl.setAttribute("aria-hidden", "true");
+    cronosEventFormEl.classList.remove("open");
+    cronosEventFormEl.style.display = "none";
+    cronosTaskFormEl.classList.remove("open");
+    cronosTaskFormEl.style.display = "none";
+  }
+
+  cronosTabEventsBtn.addEventListener("click", function () {
+    cronosTabEventsBtn.classList.add("active");
+    cronosTabTasksBtn.classList.remove("active");
+    cronosEventsSection.style.display = "block";
+    cronosTasksSection.style.display = "none";
+    loadCronosEvents();
+  });
+
+  cronosTabTasksBtn.addEventListener("click", function () {
+    cronosTabTasksBtn.classList.add("active");
+    cronosTabEventsBtn.classList.remove("active");
+    cronosTasksSection.style.display = "block";
+    cronosEventsSection.style.display = "none";
+    loadCronosTasks();
+  });
+
+  function loadCronosEvents() {
+    cronosEventListEl.innerHTML = '<div class="project-empty">Cargando agenda...</div>';
+    fetch(WORKER_BASE_URL + "/calendar?userId=" + encodeURIComponent(getOrCreateUserId()))
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        renderCronosEvents(Array.isArray(data.events) ? data.events : []);
+      })
+      .catch(function (err) {
+        console.error("Error cargando eventos de Cronos:", err);
+        cronosEventListEl.innerHTML = '<div class="project-empty">No se pudo cargar la agenda.</div>';
+      });
+  }
+
+  function renderCronosEvents(events) {
+    cronosEventListEl.innerHTML = "";
+    if (!events.length) {
+      cronosEventListEl.innerHTML = '<div class="project-empty">No tienes eventos agendados todavía. Puedes pedirle a Mini Valeria que agende uno o crearlo aquí.</div>';
+      return;
+    }
+
+    events.forEach(function (ev) {
+      const card = document.createElement("div");
+      card.className = "project-item";
+      card.style.display = "flex";
+      card.style.justifyContent = "space-between";
+      card.style.alignItems = "flex-start";
+      card.style.gap = "10px";
+
+      const info = document.createElement("div");
+      info.style.flex = "1";
+
+      const title = document.createElement("div");
+      title.className = "project-item-name";
+      title.textContent = "📅 " + ev.title;
+
+      const time = document.createElement("div");
+      time.className = "project-item-description";
+      time.style.color = "#38BDF8";
+      time.style.marginTop = "4px";
+      time.textContent = "🕒 " + ev.startTime + (ev.endTime ? " → " + ev.endTime : "") + (ev.location ? " · 📍 " + ev.location : "");
+
+      info.appendChild(title);
+      info.appendChild(time);
+
+      if (ev.description) {
+        const desc = document.createElement("div");
+        desc.className = "project-item-description";
+        desc.style.marginTop = "4px";
+        desc.textContent = ev.description;
+        info.appendChild(desc);
+      }
+
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "hud-pill-btn";
+      delBtn.style.borderColor = "var(--neon-red)";
+      delBtn.style.color = "#FDA4AF";
+      delBtn.style.padding = "4px 8px";
+      delBtn.textContent = "🗑️";
+      delBtn.title = "Eliminar evento";
+      delBtn.addEventListener("click", function () {
+        if (!confirm('¿Eliminar el evento "' + ev.title + '"?')) return;
+        fetch(WORKER_BASE_URL + "/calendar/" + encodeURIComponent(ev.id) + "?userId=" + encodeURIComponent(getOrCreateUserId()), {
+          method: "DELETE"
+        })
+          .then(function () { loadCronosEvents(); })
+          .catch(function (err) { console.error(err); alert("No se pudo eliminar el evento."); });
+      });
+
+      card.appendChild(info);
+      card.appendChild(delBtn);
+      cronosEventListEl.appendChild(card);
+    });
+  }
+
+  function loadCronosTasks() {
+    cronosTaskListEl.innerHTML = '<div class="project-empty">Cargando tareas...</div>';
+    fetch(WORKER_BASE_URL + "/tasks?userId=" + encodeURIComponent(getOrCreateUserId()))
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function (data) {
+        renderCronosTasks(Array.isArray(data.tasks) ? data.tasks : []);
+      })
+      .catch(function (err) {
+        console.error("Error cargando tareas de Cronos:", err);
+        cronosTaskListEl.innerHTML = '<div class="project-empty">No se pudieron cargar las tareas.</div>';
+      });
+  }
+
+  function renderCronosTasks(tasks) {
+    cronosTaskListEl.innerHTML = "";
+    if (!tasks.length) {
+      cronosTaskListEl.innerHTML = '<div class="project-empty">No tienes tareas registradas. Pídele a Mini Valeria que cree tus pendientes o agrégalos arriba.</div>';
+      return;
+    }
+
+    tasks.forEach(function (tsk) {
+      const card = document.createElement("div");
+      card.className = "project-item";
+      card.style.display = "flex";
+      card.style.justifyContent = "space-between";
+      card.style.alignItems = "center";
+      card.style.gap = "10px";
+      if (tsk.status === "completed") {
+        card.style.opacity = "0.6";
+      }
+
+      const left = document.createElement("div");
+      left.style.display = "flex";
+      left.style.alignItems = "flex-start";
+      left.style.gap = "10px";
+      left.style.flex = "1";
+
+      const toggleBtn = document.createElement("button");
+      toggleBtn.type = "button";
+      toggleBtn.className = "hud-pill-btn";
+      toggleBtn.style.padding = "4px 8px";
+      toggleBtn.textContent = tsk.status === "completed" ? "✅" : "⬜";
+      toggleBtn.title = tsk.status === "completed" ? "Marcar como pendiente" : "Marcar como completada";
+      toggleBtn.addEventListener("click", function () {
+        const nextStatus = tsk.status === "completed" ? "pending" : "completed";
+        fetch(WORKER_BASE_URL + "/tasks/" + encodeURIComponent(tsk.id), {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: getOrCreateUserId(), status: nextStatus })
+        })
+          .then(function () { loadCronosTasks(); })
+          .catch(function (err) { console.error(err); });
+      });
+
+      const info = document.createElement("div");
+      info.style.flex = "1";
+
+      const titleRow = document.createElement("div");
+      titleRow.style.display = "flex";
+      titleRow.style.alignItems = "center";
+      titleRow.style.gap = "8px";
+      titleRow.style.flexWrap = "wrap";
+
+      const title = document.createElement("span");
+      title.className = "project-item-name";
+      if (tsk.status === "completed") title.style.textDecoration = "line-through";
+      title.textContent = tsk.title;
+
+      const badge = document.createElement("span");
+      badge.className = "priority-badge priority-" + (tsk.priority || "medium");
+      badge.textContent = tsk.priority || "medium";
+
+      titleRow.appendChild(title);
+      titleRow.appendChild(badge);
+      info.appendChild(titleRow);
+
+      if (tsk.dueDate || tsk.description) {
+        const meta = document.createElement("div");
+        meta.className = "project-item-description";
+        meta.style.marginTop = "4px";
+        meta.textContent = (tsk.dueDate ? "⏳ Vence: " + tsk.dueDate + " " : "") + (tsk.description ? "· " + tsk.description : "");
+        info.appendChild(meta);
+      }
+
+      left.appendChild(toggleBtn);
+      left.appendChild(info);
+
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "hud-pill-btn";
+      delBtn.style.borderColor = "var(--neon-red)";
+      delBtn.style.color = "#FDA4AF";
+      delBtn.style.padding = "4px 8px";
+      delBtn.textContent = "🗑️";
+      delBtn.title = "Eliminar tarea";
+      delBtn.addEventListener("click", function () {
+        if (!confirm('¿Eliminar la tarea "' + tsk.title + '"?')) return;
+        fetch(WORKER_BASE_URL + "/tasks/" + encodeURIComponent(tsk.id) + "?userId=" + encodeURIComponent(getOrCreateUserId()), {
+          method: "DELETE"
+        })
+          .then(function () { loadCronosTasks(); })
+          .catch(function (err) { console.error(err); alert("No se pudo eliminar la tarea."); });
+      });
+
+      card.appendChild(left);
+      card.appendChild(delBtn);
+      cronosTaskListEl.appendChild(card);
+    });
+  }
+
+  document.getElementById("cronos-btn").addEventListener("click", openCronosPanel);
+  document.getElementById("cronos-close").addEventListener("click", closeCronosPanel);
+  cronosPanelEl.addEventListener("click", function (event) {
+    if (event.target === cronosPanelEl) closeCronosPanel();
+  });
+
+  document.getElementById("new-event-btn").addEventListener("click", function () {
+    const isOpen = cronosEventFormEl.classList.toggle("open");
+    cronosEventFormEl.style.display = isOpen ? "flex" : "none";
+    if (isOpen) document.getElementById("event-title").focus();
+  });
+  document.getElementById("event-cancel").addEventListener("click", function () {
+    cronosEventFormEl.classList.remove("open");
+    cronosEventFormEl.style.display = "none";
+    cronosEventFormEl.reset();
+  });
+  cronosEventFormEl.addEventListener("submit", function (event) {
+    event.preventDefault();
+    const title = document.getElementById("event-title").value.trim();
+    const startTime = document.getElementById("event-start").value.trim();
+    const endTime = document.getElementById("event-end").value.trim();
+    const location = document.getElementById("event-location").value.trim();
+    const description = document.getElementById("event-description").value.trim();
+    if (!title || !startTime) return;
+
+    const submitBtn = cronosEventFormEl.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Guardando...";
+
+    fetch(WORKER_BASE_URL + "/calendar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: getOrCreateUserId(),
+        title: title,
+        startTime: startTime,
+        endTime: endTime,
+        location: location,
+        description: description
+      })
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function () {
+        cronosEventFormEl.reset();
+        cronosEventFormEl.classList.remove("open");
+        cronosEventFormEl.style.display = "none";
+        loadCronosEvents();
+      })
+      .catch(function (err) {
+        console.error(err);
+        alert("No se pudo guardar el evento.");
+      })
+      .finally(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Guardar evento";
+      });
+  });
+
+  document.getElementById("new-task-btn").addEventListener("click", function () {
+    const isOpen = cronosTaskFormEl.classList.toggle("open");
+    cronosTaskFormEl.style.display = isOpen ? "flex" : "none";
+    if (isOpen) document.getElementById("task-title").focus();
+  });
+  document.getElementById("task-cancel").addEventListener("click", function () {
+    cronosTaskFormEl.classList.remove("open");
+    cronosTaskFormEl.style.display = "none";
+    cronosTaskFormEl.reset();
+  });
+  cronosTaskFormEl.addEventListener("submit", function (event) {
+    event.preventDefault();
+    const title = document.getElementById("task-title").value.trim();
+    const priority = document.getElementById("task-priority").value;
+    const dueDate = document.getElementById("task-due").value.trim();
+    const description = document.getElementById("task-description").value.trim();
+    if (!title) return;
+
+    const submitBtn = cronosTaskFormEl.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Creando...";
+
+    fetch(WORKER_BASE_URL + "/tasks", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: getOrCreateUserId(),
+        title: title,
+        priority: priority,
+        dueDate: dueDate,
+        description: description,
+        projectId: activeProjectId || null
+      })
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      })
+      .then(function () {
+        cronosTaskFormEl.reset();
+        cronosTaskFormEl.classList.remove("open");
+        cronosTaskFormEl.style.display = "none";
+        loadCronosTasks();
+      })
+      .catch(function (err) {
+        console.error(err);
+        alert("No se pudo crear la tarea.");
+      })
+      .finally(function () {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Crear tarea";
+      });
   });
 
   inputEl.addEventListener("input", autoResize);

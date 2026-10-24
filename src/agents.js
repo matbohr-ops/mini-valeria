@@ -91,20 +91,47 @@ Reglas:
     id: "strategic_advisor",
     name: "Subagente Consejero Estratégico",
     description:
-      "Analista de solo lectura que cruza memorias, proyectos, documentos y conversaciones de Teo para detectar cuellos de botella, prioridades y dar recomendaciones estratégicas.",
+      "Analista de solo lectura que cruza memorias, proyectos, documentos, conversaciones, calendario y tareas de Teo para detectar cuellos de botella, prioridades y dar recomendaciones estratégicas.",
     grantedCapabilities: Object.freeze([
       "memory:read",
       "project:read",
       "document:read",
       "conversation:read",
       "context:read",
-      "instructions:read"
+      "instructions:read",
+      "calendar:read",
+      "task:read"
     ]),
     systemInstruction: `
 Eres el Subagente Consejero Estratégico de Mini Valeria.
-Tienes acceso de SOLO LECTURA a las memorias, proyectos, documentos y conversaciones de Teo.
+Tienes acceso de SOLO LECTURA a las memorias, proyectos, documentos, conversaciones, calendario y tareas de Teo.
 Tu misión es cruzar información, encontrar patrones, detectar riesgos u obstáculos y proponer el siguiente paso más inteligente y accionable.
 No intentes modificar datos; entrega un análisis directo y estructurado a Mini Valeria.
+`.trim()
+  },
+
+  cronos: {
+    id: "cronos",
+    name: "Subagente Cronos (Agenda, Calendario y Tareas)",
+    description:
+      "Especialista en gestión del tiempo, programación de eventos en calendario, control de tareas pendientes, plazos (deadlines) y organización diaria de Teo.",
+    grantedCapabilities: Object.freeze([
+      "calendar:read",
+      "calendar:write",
+      "calendar:delete",
+      "task:read",
+      "task:write",
+      "task:delete",
+      "project:read"
+    ]),
+    systemInstruction: `
+Eres Cronos, el Subagente Guardián del Tiempo, Agenda y Tareas de Mini Valeria.
+Tu misión es organizar los eventos de calendario, citas, recordatorios y tareas pendientes de Teo con precisión quirúrgica.
+Reglas:
+- Antes de agendar un evento o modificar una tarea existente, consulta los eventos o tareas actuales para evitar duplicados o choques de horario.
+- Clasifica las tareas con prioridades claras ('low', 'medium', 'high', 'urgent') y estados ('pending', 'in_progress', 'completed').
+- Cuando Teo pida saber qué tiene para hoy, esta semana o qué pendientes urgentes hay, entrega un resumen estructurado y priorizado.
+- Devuelve un reporte claro, directo y accionable a Mini Valeria.
 `.trim()
   }
 });
@@ -157,14 +184,14 @@ async function executeSubagentTool(agent, toolName, args, { env, userId, session
 const DELEGATE_SUBAGENT_DECLARATION = {
   name: "delegate_to_subagent",
   description:
-    "Delega una tarea compleja o especializada a uno de los Subagentes de Mini Valeria (memory_curator, project_manager, session_ops, strategic_advisor). El subagente operará únicamente con sus permisos autorizados y devolverá un reporte estructurado.",
+    "Delega una tarea compleja o especializada a uno de los Subagentes de Mini Valeria (memory_curator, project_manager, session_ops, strategic_advisor, cronos). El subagente operará únicamente con sus permisos autorizados y devolverá un reporte estructurado.",
   parameters: {
     type: "object",
     properties: {
       agentId: {
         type: "string",
         description:
-          "ID del subagente especialista: 'memory_curator', 'project_manager', 'session_ops' o 'strategic_advisor'."
+          "ID del subagente especialista: 'memory_curator', 'project_manager', 'session_ops', 'strategic_advisor' o 'cronos'."
       },
       task: {
         type: "string",

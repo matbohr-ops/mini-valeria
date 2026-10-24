@@ -19,6 +19,10 @@ const MAX_DOCUMENT_NAME_LENGTH = 200;
 const MAX_DOCUMENT_CONTENT_LENGTH = 100000;
 const MAX_CONTEXT_CONTENT_LENGTH = 100000;
 const MAX_INSTRUCTIONS_CONTENT_LENGTH = 20000;
+const MAX_EVENT_TITLE_LENGTH = 200;
+const MAX_EVENT_DESCRIPTION_LENGTH = 5000;
+const MAX_TASK_TITLE_LENGTH = 200;
+const MAX_TASK_DESCRIPTION_LENGTH = 5000;
 const MAX_TOOL_RESULT_LENGTH = 60000;
 
 const CAPABILITY_CATALOG = Object.freeze({
@@ -39,7 +43,13 @@ const CAPABILITY_CATALOG = Object.freeze({
   "context:delete": { description: "Eliminar contexto temporal." },
   "instructions:read": { description: "Consultar instrucciones de una conversación." },
   "instructions:write": { description: "Crear o actualizar instrucciones." },
-  "instructions:delete": { description: "Eliminar instrucciones." }
+  "instructions:delete": { description: "Eliminar instrucciones." },
+  "calendar:read": { description: "Consultar eventos y agenda del calendario." },
+  "calendar:write": { description: "Crear o actualizar eventos en el calendario." },
+  "calendar:delete": { description: "Eliminar eventos del calendario." },
+  "task:read": { description: "Consultar tareas, pendientes y recordatorios." },
+  "task:write": { description: "Crear, completar o actualizar tareas y pendientes." },
+  "task:delete": { description: "Eliminar tareas o pendientes." }
 });
 
 const TOOL_OPERATION_METADATA = Object.freeze({
@@ -60,7 +70,15 @@ const TOOL_OPERATION_METADATA = Object.freeze({
   set_conversation_context: { capability: "context:write", requiresConfirmation: false },
   clear_conversation_context: { capability: "context:delete", requiresConfirmation: false },
   set_conversation_instructions: { capability: "instructions:write", requiresConfirmation: false },
-  clear_conversation_instructions: { capability: "instructions:delete", requiresConfirmation: false }
+  clear_conversation_instructions: { capability: "instructions:delete", requiresConfirmation: false },
+  get_calendar_events: { capability: "calendar:read", requiresConfirmation: false },
+  create_calendar_event: { capability: "calendar:write", requiresConfirmation: false },
+  update_calendar_event: { capability: "calendar:write", requiresConfirmation: false },
+  delete_calendar_event: { capability: "calendar:delete", requiresConfirmation: true },
+  get_tasks: { capability: "task:read", requiresConfirmation: false },
+  create_task: { capability: "task:write", requiresConfirmation: false },
+  update_task: { capability: "task:write", requiresConfirmation: false },
+  delete_task: { capability: "task:delete", requiresConfirmation: true }
 });
 
 const DEFAULT_GRANTED_CAPABILITIES = Object.freeze(Object.keys(CAPABILITY_CATALOG));
@@ -263,6 +281,118 @@ const TOOL_DEFINITIONS = [
     name: "clear_conversation_instructions",
     description: "Quita las instrucciones temporales de la conversación actual.",
     parameters: { type: "object", properties: {}, required: [] }
+  },
+  {
+    name: "get_calendar_events",
+    description: "Obtiene los eventos agendados en el calendario de Teo. Permite filtrar opcionalmente por fecha de inicio/fin o búsqueda de texto.",
+    parameters: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: "Fecha/hora mínima opcional (formato ISO o YYYY-MM-DD)." },
+        to: { type: "string", description: "Fecha/hora máxima opcional (formato ISO o YYYY-MM-DD)." },
+        query: { type: "string", description: "Texto opcional para filtrar por título, descripción o lugar." }
+      },
+      required: []
+    }
+  },
+  {
+    name: "create_calendar_event",
+    description: "Crea un nuevo evento o cita en el calendario de Teo. Úsala cuando Teo pida agendar una reunión, cita, recordatorio con hora o bloque de tiempo.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Título del evento o reunión." },
+        startTime: { type: "string", description: "Fecha y hora de inicio (ej. '2026-10-25T15:00' o '2026-10-25 15:00')." },
+        endTime: { type: "string", description: "Fecha y hora de finalización opcional." },
+        description: { type: "string", description: "Notas o detalles del evento." },
+        location: { type: "string", description: "Lugar físico, enlace o sala virtual." },
+        category: { type: "string", description: "Categoría opcional (ej. 'work', 'personal', 'study', 'health')." }
+      },
+      required: ["title", "startTime"]
+    }
+  },
+  {
+    name: "update_calendar_event",
+    description: "Actualiza un evento existente del calendario de Teo por su ID o por su título exacto.",
+    parameters: {
+      type: "object",
+      properties: {
+        eventId: { type: "string", description: "ID del evento o título exacto del evento a modificar." },
+        title: { type: "string", description: "Nuevo título del evento, si cambia." },
+        startTime: { type: "string", description: "Nueva fecha y hora de inicio, si cambia." },
+        endTime: { type: "string", description: "Nueva fecha y hora de fin, si cambia." },
+        description: { type: "string", description: "Nueva descripción, si cambia." },
+        location: { type: "string", description: "Nueva ubicación, si cambia." },
+        category: { type: "string", description: "Nueva categoría, si cambia." }
+      },
+      required: ["eventId"]
+    }
+  },
+  {
+    name: "delete_calendar_event",
+    description: "Elimina un evento del calendario de Teo. Requiere confirmación explícita antes de ejecutarse.",
+    parameters: {
+      type: "object",
+      properties: {
+        eventId: { type: "string", description: "ID del evento o título exacto del evento que se desea eliminar." }
+      },
+      required: ["eventId"]
+    }
+  },
+  {
+    name: "get_tasks",
+    description: "Obtiene la lista de tareas y pendientes de Teo. Permite filtrar opcionalmente por estado ('pending', 'in_progress', 'completed'), prioridad ('low', 'medium', 'high', 'urgent') o proyecto.",
+    parameters: {
+      type: "object",
+      properties: {
+        status: { type: "string", description: "Estado opcional para filtrar: 'pending', 'in_progress' o 'completed'." },
+        priority: { type: "string", description: "Prioridad opcional para filtrar: 'low', 'medium', 'high' o 'urgent'." },
+        projectId: { type: "string", description: "ID o nombre del proyecto opcional para filtrar sus tareas." }
+      },
+      required: []
+    }
+  },
+  {
+    name: "create_task",
+    description: "Crea una nueva tarea o pendiente para Teo.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "Título claro y accionable de la tarea." },
+        description: { type: "string", description: "Detalles adicionales o pasos de la tarea." },
+        dueDate: { type: "string", description: "Fecha límite opcional (ej. '2026-10-26' o '2026-10-26T18:00')." },
+        priority: { type: "string", description: "Prioridad de la tarea: 'low', 'medium', 'high' o 'urgent' (por defecto 'medium')." },
+        projectId: { type: "string", description: "ID o nombre del proyecto al que pertenece la tarea (opcional)." }
+      },
+      required: ["title"]
+    }
+  },
+  {
+    name: "update_task",
+    description: "Actualiza una tarea existente (por ejemplo para marcarla como 'completed' o 'in_progress', cambiar su fecha límite, prioridad o título).",
+    parameters: {
+      type: "object",
+      properties: {
+        taskId: { type: "string", description: "ID de la tarea o título exacto de la tarea que se desea actualizar." },
+        title: { type: "string", description: "Nuevo título de la tarea, si cambia." },
+        description: { type: "string", description: "Nueva descripción, si cambia." },
+        dueDate: { type: "string", description: "Nueva fecha límite, si cambia." },
+        priority: { type: "string", description: "Nueva prioridad ('low', 'medium', 'high', 'urgent'), si cambia." },
+        status: { type: "string", description: "Nuevo estado ('pending', 'in_progress', 'completed'), si cambia." }
+      },
+      required: ["taskId"]
+    }
+  },
+  {
+    name: "delete_task",
+    description: "Elimina una tarea o pendiente de Teo. Requiere confirmación explícita antes de ejecutarse.",
+    parameters: {
+      type: "object",
+      properties: {
+        taskId: { type: "string", description: "ID de la tarea o título exacto de la tarea que se desea eliminar." }
+      },
+      required: ["taskId"]
+    }
   }
 ];
 
@@ -350,6 +480,22 @@ function validateToolArguments(tool, args) {
         maxLength = MAX_INSTRUCTIONS_CONTENT_LENGTH;
       }
 
+      if ((tool.name === "create_calendar_event" || tool.name === "update_calendar_event") && key === "title") {
+        maxLength = MAX_EVENT_TITLE_LENGTH;
+      }
+
+      if ((tool.name === "create_calendar_event" || tool.name === "update_calendar_event") && key === "description") {
+        maxLength = MAX_EVENT_DESCRIPTION_LENGTH;
+      }
+
+      if ((tool.name === "create_task" || tool.name === "update_task") && key === "title") {
+        maxLength = MAX_TASK_TITLE_LENGTH;
+      }
+
+      if ((tool.name === "create_task" || tool.name === "update_task") && key === "description") {
+        maxLength = MAX_TASK_DESCRIPTION_LENGTH;
+      }
+
       if (value.length > maxLength) {
         throw new Error(`El argumento ${key} supera el límite de ${maxLength} caracteres.`);
       }
@@ -389,6 +535,38 @@ async function resolveDocument(userStub, projectId, documentRef) {
   );
 }
 
+async function resolveCalendarEvent(userStub, eventRef) {
+  const byId = await userStub.getCalendarEvent(eventRef);
+  if (byId) return byId;
+
+  const events = await userStub.getCalendarEvents();
+  const normalizedRef = eventRef.trim().toLowerCase();
+
+  return (
+    events.find(
+      (item) =>
+        typeof item.title === "string" &&
+        item.title.trim().toLowerCase() === normalizedRef
+    ) || null
+  );
+}
+
+async function resolveTask(userStub, taskRef) {
+  const byId = await userStub.getTask(taskRef);
+  if (byId) return byId;
+
+  const tasks = await userStub.getTasks();
+  const normalizedRef = taskRef.trim().toLowerCase();
+
+  return (
+    tasks.find(
+      (item) =>
+        typeof item.title === "string" &&
+        item.title.trim().toLowerCase() === normalizedRef
+    ) || null
+  );
+}
+
 function compactCreatedDocument(document) {
   return {
     id: document.id,
@@ -408,6 +586,10 @@ function buildConfirmationSummary(name, args) {
       return `Eliminar la memoria con ID "${args.memoryId}".`;
     case "delete_document":
       return `Eliminar el documento "${args.documentId}" del proyecto "${args.projectId}".`;
+    case "delete_calendar_event":
+      return `Eliminar el evento de calendario "${args.eventId}".`;
+    case "delete_task":
+      return `Eliminar la tarea "${args.taskId}".`;
     default:
       return `Ejecutar la acción "${name}".`;
   }
@@ -671,6 +853,142 @@ async function executeTool(
       const sessionStub = env.CONVERSATION_SESSION.get(sessionDoId);
       await sessionStub.deleteInstructions();
       return { cleared: true };
+    }
+
+    case "get_calendar_events": {
+      return await userStub.getCalendarEvents({
+        from: args.from ? args.from.trim() : null,
+        to: args.to ? args.to.trim() : null,
+        query: args.query ? args.query.trim() : null
+      });
+    }
+
+    case "create_calendar_event": {
+      const event = await userStub.saveCalendarEvent({
+        title: args.title.trim(),
+        startTime: args.startTime.trim(),
+        endTime: typeof args.endTime === "string" ? args.endTime.trim() : "",
+        description: typeof args.description === "string" ? args.description.trim() : "",
+        location: typeof args.location === "string" ? args.location.trim() : "",
+        category: typeof args.category === "string" && args.category.trim() ? args.category.trim() : "general"
+      });
+      return event;
+    }
+
+    case "update_calendar_event": {
+      if (
+        args.title === undefined &&
+        args.startTime === undefined &&
+        args.endTime === undefined &&
+        args.description === undefined &&
+        args.location === undefined &&
+        args.category === undefined
+      ) {
+        throw new Error("Debes indicar al menos un campo del evento para actualizar.");
+      }
+
+      const existing = await resolveCalendarEvent(userStub, args.eventId);
+      if (!existing) {
+        throw new Error("El evento de calendario solicitado no existe.");
+      }
+
+      const updated = await userStub.updateCalendarEvent(existing.id, {
+        title: args.title !== undefined ? args.title.trim() : undefined,
+        startTime: args.startTime !== undefined ? args.startTime.trim() : undefined,
+        endTime: args.endTime !== undefined ? args.endTime.trim() : undefined,
+        description: args.description !== undefined ? args.description.trim() : undefined,
+        location: args.location !== undefined ? args.location.trim() : undefined,
+        category: args.category !== undefined ? args.category.trim() : undefined
+      });
+
+      return updated;
+    }
+
+    case "delete_calendar_event": {
+      const existing = await resolveCalendarEvent(userStub, args.eventId);
+      if (!existing) {
+        throw new Error("El evento de calendario solicitado no existe.");
+      }
+
+      const deleted = await userStub.deleteCalendarEvent(existing.id);
+      if (!deleted) {
+        throw new Error("No se pudo eliminar el evento de calendario.");
+      }
+
+      return { deleted: true, event: deleted };
+    }
+
+    case "get_tasks": {
+      let resolvedProjectId = null;
+      if (args.projectId && args.projectId.trim()) {
+        const project = await resolveProject(userStub, args.projectId);
+        resolvedProjectId = project ? project.id : args.projectId.trim();
+      }
+
+      return await userStub.getTasks({
+        status: args.status ? args.status.trim() : null,
+        priority: args.priority ? args.priority.trim() : null,
+        projectId: resolvedProjectId
+      });
+    }
+
+    case "create_task": {
+      let resolvedProjectId = null;
+      if (args.projectId && args.projectId.trim()) {
+        const project = await resolveProject(userStub, args.projectId);
+        resolvedProjectId = project ? project.id : null;
+      }
+
+      const task = await userStub.saveTask({
+        title: args.title.trim(),
+        description: typeof args.description === "string" ? args.description.trim() : "",
+        dueDate: typeof args.dueDate === "string" ? args.dueDate.trim() : "",
+        priority: typeof args.priority === "string" && args.priority.trim() ? args.priority.trim().toLowerCase() : "medium",
+        projectId: resolvedProjectId
+      });
+
+      return task;
+    }
+
+    case "update_task": {
+      if (
+        args.title === undefined &&
+        args.description === undefined &&
+        args.dueDate === undefined &&
+        args.priority === undefined &&
+        args.status === undefined
+      ) {
+        throw new Error("Debes indicar al menos un campo de la tarea para actualizar.");
+      }
+
+      const existing = await resolveTask(userStub, args.taskId);
+      if (!existing) {
+        throw new Error("La tarea solicitada no existe.");
+      }
+
+      const updated = await userStub.updateTask(existing.id, {
+        title: args.title !== undefined ? args.title.trim() : undefined,
+        description: args.description !== undefined ? args.description.trim() : undefined,
+        dueDate: args.dueDate !== undefined ? args.dueDate.trim() : undefined,
+        priority: args.priority !== undefined ? args.priority.trim().toLowerCase() : undefined,
+        status: args.status !== undefined ? args.status.trim().toLowerCase() : undefined
+      });
+
+      return updated;
+    }
+
+    case "delete_task": {
+      const existing = await resolveTask(userStub, args.taskId);
+      if (!existing) {
+        throw new Error("La tarea solicitada no existe.");
+      }
+
+      const deleted = await userStub.deleteTask(existing.id);
+      if (!deleted) {
+        throw new Error("No se pudo eliminar la tarea.");
+      }
+
+      return { deleted: true, task: deleted };
     }
 
     default:

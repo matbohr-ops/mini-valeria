@@ -122,6 +122,8 @@ async function runSubagentTask(agentId, task, { userId, sessionId, env }) {
   let finalReport = "";
   let pendingConfirmation = null;
 
+  const nowIso = new Date().toISOString();
+
   for (let round = 0; round < MAX_SUBAGENT_ROUNDS; round += 1) {
     const response = await fetch(GEMINI_URL, {
       method: "POST",
@@ -131,7 +133,7 @@ async function runSubagentTask(agentId, task, { userId, sessionId, env }) {
       },
       body: JSON.stringify({
         systemInstruction: {
-          parts: [{ text: agent.systemInstruction }]
+          parts: [{ text: `${agent.systemInstruction}\n\nFecha y hora actual de referencia (UTC): ${nowIso}` }]
         },
         contents: subagentContents,
         ...(allowedTools.length > 0
@@ -250,12 +252,14 @@ Descripción: ${projectContext.description || "Sin descripción."}
     ? "\nCONVERSACIÓN ACTUAL:\n\nEl ID interno de la conversación actual es: " + currentConversationId + "\nSi Teo pide información de esta conversación, puedes usar este ID con la herramienta get_conversation.\n"
     : "";
 
+  const currentDateTimeText = "\nFECHA Y HORA ACTUAL DE REFERENCIA (UTC): " + new Date().toISOString() + "\nUsa esta referencia temporal cuando Teo mencione expresiones como 'hoy', 'mañana', 'esta semana' o pida agendar eventos y tareas con el subagente 'cronos' o las herramientas de calendario/tareas.\n";
+
   return `${SYSTEM_PROMPT}
 
 MEMORIAS GUARDADAS DE TEO:
 
 ${memoryContext}
-${projectContextText}${currentConversationText}
+${projectContextText}${currentConversationText}${currentDateTimeText}
 
 Usa estas memorias como contexto cuando sean relevantes para responder a Teo.
 
@@ -913,6 +917,185 @@ export class UserMemory extends DurableObject {
 
     return deleted;
   }
+
+  /* ------------------------------------------------------------------
+   * CRONOS — CALENDARIO Y EVENTOS (V2.1 / Paso 3)
+   * ------------------------------------------------------------------ */
+
+  async saveCalendarEvent({
+    title,
+    startTime,
+    endTime = "",
+    description = "",
+    location = "",
+    category = "general"
+  }) {
+    const events = (await this.ctx.storage.get("calendar_events")) || [];
+
+    const event = {
+      id: crypto.randomUUID(),
+      title,
+      startTime,
+      endTime: endTime || "",
+      description: description || "",
+      location: location || "",
+      category: category || "general",
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    events.push(event);
+    events.sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)));
+
+    await this.ctx.storage.put("calendar_events", events);
+    return event;
+  }
+
+  async getCalendarEvents({ from = null, to = null, query = null } = {}) {
+    let events = (await this.ctx.storage.get("calendar_events")) || [];
+
+    if (from) {
+      events = events.filter((e) => String(e.startTime) >= String(from));
+    }
+    if (to) {
+      events = events.filter((e) => String(e.startTime) <= String(to));
+    }
+    if (query) {
+      const q = String(query).toLowerCase();
+      events = events.filter(
+        (e) =>
+          (e.title && e.title.toLowerCase().includes(q)) ||
+          (e.description && e.description.toLowerCase().includes(q)) ||
+          (e.location && e.location.toLowerCase().includes(q))
+      );
+    }
+
+    return events.sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)));
+  }
+
+  async getCalendarEvent(eventId) {
+    const events = (await this.ctx.storage.get("calendar_events")) || [];
+    return events.find((e) => e.id === eventId) || null;
+  }
+
+  async updateCalendarEvent(eventId, updates = {}) {
+    const events = (await this.ctx.storage.get("calendar_events")) || [];
+    const event = events.find((e) => e.id === eventId);
+    if (!event) return null;
+
+    if (updates.title !== undefined) event.title = updates.title;
+    if (updates.startTime !== undefined) event.startTime = updates.startTime;
+    if (updates.endTime !== undefined) event.endTime = updates.endTime;
+    if (updates.description !== undefined) event.description = updates.description;
+    if (updates.location !== undefined) event.location = updates.location;
+    if (updates.category !== undefined) event.category = updates.category;
+    event.updatedAt = Date.now();
+
+    events.sort((a, b) => String(a.startTime).localeCompare(String(b.startTime)));
+    await this.ctx.storage.put("calendar_events", events);
+    return event;
+  }
+
+  async deleteCalendarEvent(eventId) {
+    const events = (await this.ctx.storage.get("calendar_events")) || [];
+    const index = events.findIndex((e) => e.id === eventId);
+    if (index === -1) return null;
+
+    const [deleted] = events.splice(index, 1);
+    await this.ctx.storage.put("calendar_events", events);
+    return deleted;
+  }
+
+  /* ------------------------------------------------------------------
+   * CRONOS — TAREAS Y PENDIENTES (V2.1 / Paso 3)
+   * ------------------------------------------------------------------ */
+
+  async saveTask({
+    title,
+    description = "",
+    dueDate = "",
+    priority = "medium",
+    status = "pending",
+    projectId = null
+  }) {
+    const tasks = (await this.ctx.storage.get("tasks")) || [];
+    const validPriorities = ["low", "medium", "high", "urgent"];
+    const validStatuses = ["pending", "in_progress", "completed"];
+
+    const normalizedPriority = validPriorities.includes(priority) ? priority : "medium";
+    const normalizedStatus = validStatuses.includes(status) ? status : "pending";
+
+    const task = {
+      id: crypto.randomUUID(),
+      title,
+      description: description || "",
+      dueDate: dueDate || "",
+      priority: normalizedPriority,
+      status: normalizedStatus,
+      projectId: projectId || null,
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    tasks.unshift(task);
+    await this.ctx.storage.put("tasks", tasks);
+    return task;
+  }
+
+  async getTasks({ status = null, priority = null, projectId = null } = {}) {
+    let tasks = (await this.ctx.storage.get("tasks")) || [];
+
+    if (status) {
+      tasks = tasks.filter((t) => t.status === status);
+    }
+    if (priority) {
+      tasks = tasks.filter((t) => t.priority === priority);
+    }
+    if (projectId) {
+      tasks = tasks.filter((t) => t.projectId === projectId);
+    }
+
+    return tasks;
+  }
+
+  async getTask(taskId) {
+    const tasks = (await this.ctx.storage.get("tasks")) || [];
+    return tasks.find((t) => t.id === taskId) || null;
+  }
+
+  async updateTask(taskId, updates = {}) {
+    const tasks = (await this.ctx.storage.get("tasks")) || [];
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return null;
+
+    const validPriorities = ["low", "medium", "high", "urgent"];
+    const validStatuses = ["pending", "in_progress", "completed"];
+
+    if (updates.title !== undefined) task.title = updates.title;
+    if (updates.description !== undefined) task.description = updates.description;
+    if (updates.dueDate !== undefined) task.dueDate = updates.dueDate;
+    if (updates.priority !== undefined && validPriorities.includes(updates.priority)) {
+      task.priority = updates.priority;
+    }
+    if (updates.status !== undefined && validStatuses.includes(updates.status)) {
+      task.status = updates.status;
+    }
+    if (updates.projectId !== undefined) task.projectId = updates.projectId;
+    task.updatedAt = Date.now();
+
+    await this.ctx.storage.put("tasks", tasks);
+    return task;
+  }
+
+  async deleteTask(taskId) {
+    const tasks = (await this.ctx.storage.get("tasks")) || [];
+    const index = tasks.findIndex((t) => t.id === taskId);
+    if (index === -1) return null;
+
+    const [deleted] = tasks.splice(index, 1);
+    await this.ctx.storage.put("tasks", tasks);
+    return deleted;
+  }
 }
 
 export default {
@@ -1127,6 +1310,40 @@ export default {
         }
       }
 
+      if (url.pathname === "/calendar") {
+        try {
+          const userId = url.searchParams.get("userId");
+          if (!userId) return jsonResponse({ error: "No se recibió un userId válido." }, 400);
+          const from = url.searchParams.get("from") || null;
+          const to = url.searchParams.get("to") || null;
+          const query = url.searchParams.get("query") || null;
+
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const events = await stub.getCalendarEvents({ from, to, query });
+          return jsonResponse({ success: true, events });
+        } catch (error) {
+          return jsonResponse({ error: "Error leyendo el calendario.", details: error.message }, 500);
+        }
+      }
+
+      if (url.pathname === "/tasks") {
+        try {
+          const userId = url.searchParams.get("userId");
+          if (!userId) return jsonResponse({ error: "No se recibió un userId válido." }, 400);
+          const status = url.searchParams.get("status") || null;
+          const priority = url.searchParams.get("priority") || null;
+          const projectId = url.searchParams.get("projectId") || null;
+
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const tasks = await stub.getTasks({ status, priority, projectId });
+          return jsonResponse({ success: true, tasks });
+        } catch (error) {
+          return jsonResponse({ error: "Error leyendo las tareas.", details: error.message }, 500);
+        }
+      }
+
       const message =
         url.searchParams.get("message") ||
         "Hola Mini Valeria. Esta es una prueba de conexión. Respóndeme brevemente.";
@@ -1223,9 +1440,93 @@ export default {
           }, 500);
         }
       }
+
+      if (url.pathname.startsWith("/calendar/")) {
+        try {
+          const eventId = url.pathname.split("/")[2];
+          const userId = url.searchParams.get("userId");
+          if (!eventId || !userId) {
+            return jsonResponse({ error: "Se requieren eventId y userId válidos." }, 400);
+          }
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const deleted = await stub.deleteCalendarEvent(eventId);
+          if (!deleted) return jsonResponse({ error: "El evento solicitado no existe." }, 404);
+          return jsonResponse({ success: true, event: deleted });
+        } catch (error) {
+          return jsonResponse({ error: "Error eliminando el evento.", details: error.message }, 500);
+        }
+      }
+
+      if (url.pathname.startsWith("/tasks/")) {
+        try {
+          const taskId = url.pathname.split("/")[2];
+          const userId = url.searchParams.get("userId");
+          if (!taskId || !userId) {
+            return jsonResponse({ error: "Se requieren taskId y userId válidos." }, 400);
+          }
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const deleted = await stub.deleteTask(taskId);
+          if (!deleted) return jsonResponse({ error: "La tarea solicitada no existe." }, 404);
+          return jsonResponse({ success: true, task: deleted });
+        } catch (error) {
+          return jsonResponse({ error: "Error eliminando la tarea.", details: error.message }, 500);
+        }
+      }
     }
 
     if (request.method === "PATCH") {
+      if (url.pathname.startsWith("/calendar/")) {
+        try {
+          const eventId = url.pathname.split("/")[2];
+          const body = await request.json();
+          const userId = body.userId;
+          if (!eventId || !userId) {
+            return jsonResponse({ error: "Se requieren eventId y userId válidos." }, 400);
+          }
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const updated = await stub.updateCalendarEvent(eventId, {
+            title: typeof body.title === "string" ? body.title.trim() : undefined,
+            startTime: typeof body.startTime === "string" ? body.startTime.trim() : undefined,
+            endTime: typeof body.endTime === "string" ? body.endTime.trim() : undefined,
+            description: typeof body.description === "string" ? body.description.trim() : undefined,
+            location: typeof body.location === "string" ? body.location.trim() : undefined,
+            category: typeof body.category === "string" ? body.category.trim() : undefined
+          });
+          if (!updated) return jsonResponse({ error: "El evento solicitado no existe." }, 404);
+          return jsonResponse({ success: true, event: updated });
+        } catch (error) {
+          return jsonResponse({ error: "Error actualizando el evento.", details: error.message }, 500);
+        }
+      }
+
+      if (url.pathname.startsWith("/tasks/")) {
+        try {
+          const taskId = url.pathname.split("/")[2];
+          const body = await request.json();
+          const userId = body.userId;
+          if (!taskId || !userId) {
+            return jsonResponse({ error: "Se requieren taskId y userId válidos." }, 400);
+          }
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const updated = await stub.updateTask(taskId, {
+            title: typeof body.title === "string" ? body.title.trim() : undefined,
+            description: typeof body.description === "string" ? body.description.trim() : undefined,
+            dueDate: typeof body.dueDate === "string" ? body.dueDate.trim() : undefined,
+            priority: typeof body.priority === "string" ? body.priority.trim().toLowerCase() : undefined,
+            status: typeof body.status === "string" ? body.status.trim().toLowerCase() : undefined,
+            projectId: body.projectId !== undefined ? body.projectId : undefined
+          });
+          if (!updated) return jsonResponse({ error: "La tarea solicitada no existe." }, 404);
+          return jsonResponse({ success: true, task: updated });
+        } catch (error) {
+          return jsonResponse({ error: "Error actualizando la tarea.", details: error.message }, 500);
+        }
+      }
+
       if (url.pathname.startsWith("/conversations/")) {
         try {
           const conversationId = url.pathname.split("/")[2];
@@ -1309,6 +1610,70 @@ export default {
             { error: "Error ejecutando la acción confirmada.", details: error.message },
             500
           );
+        }
+      }
+
+      if (url.pathname === "/calendar") {
+        try {
+          const body = await request.json();
+          const userId = body.userId;
+          const title = typeof body.title === "string" ? body.title.trim() : "";
+          const startTime = typeof body.startTime === "string" ? body.startTime.trim() : "";
+
+          if (!userId || typeof userId !== "string") {
+            return jsonResponse({ error: "No se recibió un userId válido." }, 400);
+          }
+          if (!title) {
+            return jsonResponse({ error: "El título del evento es obligatorio." }, 400);
+          }
+          if (!startTime) {
+            return jsonResponse({ error: "La fecha/hora de inicio (startTime) es obligatoria." }, 400);
+          }
+
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const event = await stub.saveCalendarEvent({
+            title,
+            startTime,
+            endTime: typeof body.endTime === "string" ? body.endTime.trim() : "",
+            description: typeof body.description === "string" ? body.description.trim() : "",
+            location: typeof body.location === "string" ? body.location.trim() : "",
+            category: typeof body.category === "string" && body.category.trim() ? body.category.trim() : "general"
+          });
+
+          return jsonResponse({ success: true, event });
+        } catch (error) {
+          return jsonResponse({ error: "Error creando el evento.", details: error.message }, 500);
+        }
+      }
+
+      if (url.pathname === "/tasks") {
+        try {
+          const body = await request.json();
+          const userId = body.userId;
+          const title = typeof body.title === "string" ? body.title.trim() : "";
+
+          if (!userId || typeof userId !== "string") {
+            return jsonResponse({ error: "No se recibió un userId válido." }, 400);
+          }
+          if (!title) {
+            return jsonResponse({ error: "El título de la tarea es obligatorio." }, 400);
+          }
+
+          const id = env.USER_MEMORY.idFromName(userId);
+          const stub = env.USER_MEMORY.get(id);
+          const task = await stub.saveTask({
+            title,
+            description: typeof body.description === "string" ? body.description.trim() : "",
+            dueDate: typeof body.dueDate === "string" ? body.dueDate.trim() : "",
+            priority: typeof body.priority === "string" ? body.priority.trim().toLowerCase() : "medium",
+            status: typeof body.status === "string" ? body.status.trim().toLowerCase() : "pending",
+            projectId: body.projectId || null
+          });
+
+          return jsonResponse({ success: true, task });
+        } catch (error) {
+          return jsonResponse({ error: "Error creando la tarea.", details: error.message }, 500);
         }
       }
 
